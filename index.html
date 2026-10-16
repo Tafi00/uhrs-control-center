@@ -1,1240 +1,1412 @@
 <!doctype html>
-<html lang="vi">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>UHRS Control Center v3.0 — Quản Lý Đa Profile & Kho Đáp Án 63766</title>
-    <style>
-      :root {
-        color-scheme: dark;
-        --bg: #090e14;
-        --bg-soft: #0e1620;
-        --panel: #121c27;
-        --panel-2: #172433;
-        --panel-hover: #1c2c3e;
-        --border: rgba(148, 163, 184, 0.16);
-        --border-strong: rgba(148, 163, 184, 0.28);
-        --text: #f1f5f9;
-        --muted: #94a3b8;
-        --subtle: #64748b;
-        --emerald: #10b981;
-        --emerald-soft: rgba(16, 185, 129, 0.14);
-        --amber: #f59e0b;
-        --amber-soft: rgba(245, 158, 11, 0.15);
-        --rose: #f43f5e;
-        --rose-soft: rgba(244, 63, 94, 0.15);
-        --sky: #38bdf8;
-        --sky-soft: rgba(56, 189, 248, 0.14);
-        --indigo: #6366f1;
-        --indigo-soft: rgba(99, 102, 241, 0.16);
-        --shadow: 0 14px 34px rgba(0, 0, 0, 0.36);
-        --radius: 12px;
-        --radius-sm: 8px;
-      }
+<html lang="vi" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>UHRS Console — 63766</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root, [data-theme="dark"] {
+      --bg: #09090b;
+      --bg-sidebar: #0c0c0f;
+      --surface: #121215;
+      --surface-2: #18181c;
+      --surface-hover: #1f1f24;
+      --border: #232329;
+      --border-strong: #2e2e36;
+      --text: #f4f4f5;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --accent: #f4f4f5;
+      --accent-fg: #09090b;
+      --brand: #3b82f6;
+      --brand-subtle: rgba(59, 130, 246, 0.12);
+      --emerald: #10b981;
+      --emerald-subtle: rgba(16, 185, 129, 0.12);
+      --amber: #f59e0b;
+      --amber-subtle: rgba(245, 158, 11, 0.12);
+      --rose: #f43f5e;
+      --rose-subtle: rgba(244, 63, 94, 0.12);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
 
-      * {
-        box-sizing: border-box;
-      }
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-sidebar: #f1f5f9;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --surface-hover: #f1f5f9;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --accent: #0f172a;
+      --accent-fg: #ffffff;
+      --brand: #2563eb;
+      --brand-subtle: rgba(37, 99, 235, 0.08);
+      --emerald: #059669;
+      --emerald-subtle: rgba(5, 150, 105, 0.1);
+      --amber: #d97706;
+      --amber-subtle: rgba(217, 119, 6, 0.1);
+      --rose: #e11d48;
+      --rose-subtle: rgba(225, 29, 72, 0.1);
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
 
-      html, body {
-        margin: 0;
-        padding: 0;
-        min-height: 100%;
-        background: radial-gradient(circle at top right, #132235 0%, var(--bg) 48%);
-        color: var(--text);
-        font: 14px/1.5 "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        font-variant-numeric: tabular-nums;
-      }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-      button, input, select, textarea {
-        font: inherit;
-        color: inherit;
-      }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
 
-      a {
-        color: var(--sky);
-        text-decoration: none;
-      }
-      a:hover {
-        text-decoration: underline;
-      }
+    .mono, .tabular {
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+    }
 
-      .app-shell {
-        max-width: 1440px;
-        margin: 0 auto;
-        padding: 18px 22px 42px;
-      }
+    /* App Layout */
+    .app-layout {
+      display: grid;
+      grid-template-columns: 216px 1fr;
+      min-height: 100vh;
+    }
 
-      /* Topbar */
+    /* Sidebar */
+    .sidebar {
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 12px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 8px 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+
+    .brand-mark {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      background: var(--text);
+      color: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: -0.03em;
+      flex-shrink: 0;
+    }
+
+    .brand-text h1 {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+
+    .brand-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .nav-group-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding: 6px 10px;
+      letter-spacing: 0.02em;
+    }
+
+    .nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .nav-tab {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+      text-align: left;
+    }
+
+    .nav-tab-left {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .nav-tab svg {
+      width: 15px;
+      height: 15px;
+      stroke-width: 1.75;
+      opacity: 0.75;
+      flex-shrink: 0;
+    }
+
+    .nav-tab:hover {
+      background: var(--surface-hover);
+      color: var(--text);
+    }
+
+    .nav-tab.active {
+      background: var(--surface-2);
+      color: var(--text);
+      font-weight: 600;
+      box-shadow: inset 0 0 0 1px var(--border);
+    }
+
+    .nav-tab.active svg {
+      opacity: 1;
+    }
+
+    .nav-count {
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .sidebar-shortcuts {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .shortcut-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .shortcut-btn:hover {
+      background: var(--surface);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .conn-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Main Workspace */
+    .workspace {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* Persistent Top Control Bar */
+    .topbar {
+      height: 54px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .live-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .status-dot.dot-hit {
+      background: var(--emerald);
+      box-shadow: 0 0 0 3px var(--emerald-subtle);
+    }
+
+    .status-dot.dot-wait {
+      background: var(--amber);
+      box-shadow: 0 0 0 3px var(--amber-subtle);
+    }
+
+    .status-dot.dot-danger {
+      background: var(--rose);
+      box-shadow: 0 0 0 3px var(--rose-subtle);
+    }
+
+    .topbar-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: nowrap;
+    }
+
+    .inline-control-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .inline-num {
+      width: 44px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      color: var(--text);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      outline: none;
+    }
+
+    .inline-num:focus {
+      border-color: var(--brand);
+    }
+
+    /* Switch Toggle */
+    .switch-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      user-select: none;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      transition: border-color 0.12s, color 0.12s;
+    }
+
+    .switch-label:hover {
+      color: var(--text);
+      border-color: var(--border-strong);
+    }
+
+    .switch-input {
+      appearance: none;
+      width: 28px;
+      height: 16px;
+      background: var(--border-strong);
+      border-radius: 999px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+
+    .switch-input::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 0.15s;
+    }
+
+    .switch-input:checked {
+      background: var(--emerald);
+    }
+
+    .switch-input:checked::after {
+      transform: translateX(12px);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 30px;
+      padding: 0 11px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.12s;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+
+    .btn svg {
+      width: 13.5px;
+      height: 13.5px;
+      stroke-width: 1.8;
+      flex-shrink: 0;
+    }
+
+    .btn:hover {
+      background: var(--surface-hover);
+      border-color: var(--border-strong);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: var(--accent);
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .btn-emerald {
+      background: var(--emerald-subtle);
+      color: var(--emerald);
+      border-color: rgba(16, 185, 129, 0.28);
+    }
+
+    .btn-amber {
+      background: var(--amber-subtle);
+      color: var(--amber);
+      border-color: rgba(245, 158, 11, 0.28);
+    }
+
+    .btn-rose {
+      background: var(--rose-subtle);
+      color: var(--rose);
+      border-color: rgba(244, 63, 94, 0.28);
+    }
+
+    .btn-sm {
+      height: 26px;
+      padding: 0 8px;
+      font-size: 11.5px;
+    }
+
+    .btn-icon {
+      width: 30px;
+      padding: 0;
+    }
+
+    /* Main Content Container */
+    .content-area {
+      padding: 20px;
+      max-width: 1600px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* Unified Metric Ribbon (Replaces 6 bloated KPI cards) */
+    .metric-ribbon {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .metric-cell {
+      padding: 14px 18px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .metric-cell:last-child {
+      border-right: none;
+    }
+
+    .metric-label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .metric-val {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .metric-sub {
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Workbench 2-Column Split */
+    .workbench-grid {
+      display: grid;
+      grid-template-columns: 1.55fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    /* Cards / Sections */
+    .section-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-body {
+      padding: 16px;
+    }
+
+    /* Segmented Filter Pills */
+    .segmented {
+      display: inline-flex;
+      background: var(--bg);
+      padding: 2px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      gap: 2px;
+    }
+
+    .filter-pill {
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 11.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .filter-pill:hover {
+      color: var(--text);
+    }
+
+    .filter-pill.active {
+      background: var(--surface-2);
+      color: var(--text);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Inputs */
+    .input, .select {
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 12.5px;
+      outline: none;
+      transition: border-color 0.12s;
+    }
+
+    .input:focus, .select:focus {
+      border-color: var(--brand);
+    }
+
+    /* Clean Data Tables */
+    .table-container {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      padding: 9px 14px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12.5px;
+      vertical-align: middle;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr:hover td {
+      background: var(--surface-hover);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11.5px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .badge-hit {
+      background: var(--emerald-subtle);
+      color: var(--emerald);
+      border-color: rgba(16, 185, 129, 0.25);
+    }
+
+    .badge-wait {
+      background: var(--amber-subtle);
+      color: var(--amber);
+      border-color: rgba(245, 158, 11, 0.25);
+    }
+
+    .badge-danger {
+      background: var(--rose-subtle);
+      color: var(--rose);
+      border-color: rgba(244, 63, 94, 0.25);
+    }
+
+    .badge-info {
+      background: var(--brand-subtle);
+      color: var(--brand);
+      border-color: rgba(59, 130, 246, 0.25);
+    }
+
+    /* Live HIT Inspector */
+    .inspector-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+    }
+
+    .inspector-row:last-child {
+      border-bottom: none;
+    }
+
+    .inspector-key {
+      font-size: 12px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .inspector-val {
+      font-size: 12.5px;
+      color: var(--text);
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .url-box {
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .url-text {
+      overflow-wrap: anywhere;
+      color: var(--text);
+    }
+
+    /* Quick Sheet Lookup Result */
+    .lookup-result {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      font-size: 12px;
+    }
+
+    /* Settings List (Linear Style) */
+    .settings-group {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .settings-group-title {
+      padding: 12px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      gap: 24px;
+    }
+
+    .setting-row:last-child {
+      border-bottom: none;
+    }
+
+    .setting-info h4 {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .setting-info p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .setting-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .empty-box {
+      padding: 28px 16px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12.5px;
+    }
+
+    .amount-positive {
+      color: var(--emerald);
+      font-family: "JetBrains Mono", monospace;
+      font-weight: 600;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      background: var(--text);
+      color: var(--bg);
+      font-size: 12.5px;
+      font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: all 0.18s ease;
+      z-index: 100;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 1180px) {
+      .workbench-grid {
+        grid-template-columns: 1fr;
+      }
+      .metric-ribbon {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 860px) {
+      .app-layout {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        height: auto;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
       .topbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        height: auto;
+        padding: 10px 16px;
         flex-wrap: wrap;
-        gap: 14px;
-        padding: 16px 20px;
-        background: rgba(18, 28, 39, 0.88);
-        backdrop-filter: blur(12px);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        margin-bottom: 16px;
       }
-
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-      }
-
-      .brand-logo {
-        width: 42px;
-        height: 42px;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #10b981 0%, #059669 50%, #0284c7 100%);
-        display: grid;
-        place-items: center;
-        font-weight: 800;
-        font-size: 16px;
-        color: #fff;
-        box-shadow: 0 6px 18px rgba(16, 185, 129, 0.32);
-      }
-
-      .brand-title {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin: 0;
-        font-size: 19px;
-        font-weight: 800;
-        letter-spacing: -0.01em;
-      }
-
-      .version-pill {
-        font-size: 11px;
-        font-weight: 700;
-        padding: 2px 8px;
-        border-radius: 999px;
-        background: var(--emerald-soft);
-        color: #34d399;
-        border: 1px solid rgba(16, 185, 129, 0.35);
-      }
-
-      .brand-sub {
-        color: var(--muted);
-        font-size: 12.5px;
-        margin-top: 2px;
-      }
-
-      .topbar-actions {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-
-      /* Buttons */
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 7px;
-        min-height: 38px;
-        padding: 0 14px;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--border-strong);
-        background: var(--panel-2);
-        color: var(--text);
-        font-weight: 600;
-        font-size: 13px;
-        cursor: pointer;
-        transition: all 0.15s ease;
-        white-space: nowrap;
-      }
-      .btn:hover {
-        background: var(--panel-hover);
-        border-color: rgba(148, 163, 184, 0.45);
-        transform: translateY(-1px);
-      }
-      .btn:active {
-        transform: translateY(0);
-      }
-      .btn-sm {
-        min-height: 31px;
-        padding: 0 10px;
-        font-size: 12px;
-      }
-      .btn-primary {
-        background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-        border-color: #34d399;
-        color: #ffffff;
-        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
-      }
-      .btn-primary:hover {
-        background: linear-gradient(180deg, #34d399 0%, #059669 100%);
-        border-color: #6ee7b7;
-      }
-      .btn-amber {
-        background: rgba(245, 158, 11, 0.16);
-        border-color: rgba(245, 158, 11, 0.45);
-        color: #fde68a;
-      }
-      .btn-amber:hover {
-        background: rgba(245, 158, 11, 0.26);
-      }
-      .btn-danger {
-        background: rgba(244, 63, 94, 0.15);
-        border-color: rgba(244, 63, 94, 0.42);
-        color: #fecdd3;
-      }
-      .btn-danger:hover {
-        background: rgba(244, 63, 94, 0.25);
-      }
-
-      /* KPI Strip */
-      .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 12px;
-        margin-bottom: 16px;
-      }
-
-      .kpi-card {
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 14px 16px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        gap: 6px;
-        position: relative;
-        overflow: hidden;
-      }
-
-      .kpi-label {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--muted);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 6px;
-      }
-
-      .kpi-value {
-        font-size: 21px;
-        font-weight: 800;
-        color: var(--text);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .kpi-foot {
-        font-size: 12px;
-        color: var(--muted);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      /* Badges & Dots */
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 3px 9px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 700;
-        border: 1px solid var(--border-strong);
-        background: rgba(255, 255, 255, 0.04);
-      }
-      .badge-hit {
-        background: var(--emerald-soft);
-        color: #6ee7b7;
-        border-color: rgba(16, 185, 129, 0.4);
-      }
-      .badge-wait {
-        background: var(--amber-soft);
-        color: #fde68a;
-        border-color: rgba(245, 158, 11, 0.4);
-      }
-      .badge-danger {
-        background: var(--rose-soft);
-        color: #fda4af;
-        border-color: rgba(244, 63, 94, 0.45);
-      }
-      .badge-info {
-        background: var(--sky-soft);
-        color: #7dd3fc;
-        border-color: rgba(56, 189, 248, 0.4);
-      }
-
-      .status-dot {
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        background: var(--sky);
-        display: inline-block;
-      }
-      .dot-hit {
-        background: var(--emerald);
-        box-shadow: 0 0 12px var(--emerald);
-      }
-      .dot-wait {
-        background: var(--amber);
-        box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
-      }
-      .dot-danger {
-        background: var(--rose);
-        box-shadow: 0 0 12px var(--rose);
-      }
-
-      /* Navigation Tabs */
-      .nav-tabs {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px;
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        margin-bottom: 16px;
-        overflow-x: auto;
-      }
-
-      .nav-tab {
-        flex: 1;
-        min-height: 42px;
-        padding: 0 16px;
-        border: 1px solid transparent;
-        border-radius: var(--radius-sm);
-        background: transparent;
-        color: var(--muted);
-        font-weight: 700;
-        font-size: 13.5px;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        transition: all 0.15s ease;
-        white-space: nowrap;
-      }
-      .nav-tab:hover {
-        color: var(--text);
-        background: rgba(255, 255, 255, 0.03);
-      }
-      .nav-tab.active {
-        background: var(--panel-2);
-        color: #fff;
-        border-color: rgba(56, 189, 248, 0.35);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
-      }
-      .nav-count {
-        font-size: 11px;
-        padding: 1px 7px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
-        color: var(--text);
-      }
-
-      .tab-pane {
-        display: none;
-      }
-      .tab-pane.active {
-        display: block;
-      }
-
-      /* Panels & Layouts */
-      .grid-2 {
-        display: grid;
-        grid-template-columns: 1.15fr 0.85fr;
-        gap: 16px;
-        margin-bottom: 16px;
-      }
-
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 18px;
-        margin-bottom: 16px;
-        box-shadow: var(--shadow);
-      }
-
-      .panel-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 12px;
-        margin-bottom: 14px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .panel-title {
-        margin: 0;
-        font-size: 15.5px;
-        font-weight: 700;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .panel-sub {
-        color: var(--muted);
-        font-size: 12.5px;
-        margin-top: 2px;
-      }
-
-      /* Quick Controls Strip */
-      .quick-controls-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-        gap: 12px;
-        align-items: end;
-      }
-
-      .field-group {
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
-      }
-
-      .field-label {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--muted);
-      }
-
-      .input, .select {
-        width: 100%;
-        height: 38px;
-        padding: 0 11px;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--border-strong);
-        background: var(--bg-soft);
-        color: var(--text);
-        font-size: 13.5px;
-      }
-      .input:focus, .select:focus {
-        outline: 2px solid rgba(56, 189, 248, 0.45);
-        border-color: var(--sky);
-      }
-
-      .inline-inputs {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-
-      .inline-inputs .input {
-        text-align: center;
-        font-weight: 700;
-      }
-
-      .switch-row {
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        min-height: 38px;
-        padding: 0 12px;
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--border);
-        background: var(--bg-soft);
-        cursor: pointer;
-        user-select: none;
-        font-weight: 600;
-        font-size: 13px;
-      }
-      .switch-row input[type="checkbox"] {
-        width: 17px;
-        height: 17px;
-        accent-color: var(--emerald);
-        cursor: pointer;
-      }
-
-      /* Live HIT Inspector */
-      .hit-inspector {
-        border: 1px solid var(--border-strong);
-        border-radius: var(--radius-sm);
-        padding: 14px;
-        background: var(--bg-soft);
-      }
-      .hit-inspector.active-hit {
-        border-color: rgba(16, 185, 129, 0.5);
-        background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(14, 22, 32, 0.95) 100%);
-      }
-
-      [hidden] {
-        display: none !important;
-      }
-
-      .countdown-bar {
-        margin: 10px 0;
-        padding: 10px 12px;
-        border-radius: var(--radius-sm);
-        background: rgba(16, 185, 129, 0.12);
-        border: 1px solid rgba(16, 185, 129, 0.35);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        font-weight: 700;
-        color: #a7f3d0;
-      }
-
-      .url-box {
-        padding: 9px 11px;
-        border-radius: var(--radius-sm);
-        background: #070b10;
-        border: 1px solid var(--border);
-        font-family: "JetBrains Mono", Consolas, monospace;
-        font-size: 12.5px;
-        color: #e2e8f0;
-        overflow-wrap: anywhere;
-        margin: 8px 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-      }
-
-      .options-pills {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 10px;
-      }
-      .option-pill {
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-size: 12px;
-        border: 1px solid var(--border);
-        background: rgba(255, 255, 255, 0.03);
-        color: var(--muted);
-      }
-      .option-pill.selected {
-        background: var(--emerald-soft);
-        border-color: var(--emerald);
-        color: #6ee7b7;
-        font-weight: 700;
-      }
-
-      /* Filter Bar & Search */
-      .toolbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-bottom: 14px;
-      }
-
-      .filter-pills {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-
-      .filter-pill {
-        min-height: 32px;
-        padding: 0 11px;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        background: var(--bg-soft);
-        color: var(--muted);
-        font-size: 12px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.15s ease;
-      }
-      .filter-pill:hover {
-        color: var(--text);
-        border-color: var(--border-strong);
-      }
-      .filter-pill.active {
-        background: var(--sky-soft);
-        color: #7dd3fc;
-        border-color: rgba(56, 189, 248, 0.45);
-      }
-
-      .search-input {
-        min-width: 260px;
-        max-width: 380px;
-        flex: 1;
-      }
-
-      /* Tables */
-      .table-wrap {
-        overflow-x: auto;
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        background: var(--bg-soft);
-      }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-      }
-
-      th, td {
-        padding: 10px 12px;
-        text-align: left;
-        border-bottom: 1px solid var(--border);
-        vertical-align: middle;
-      }
-
-      th {
-        background: rgba(255, 255, 255, 0.03);
-        color: var(--muted);
-        font-weight: 700;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-        white-space: nowrap;
-      }
-
-      tbody tr:hover {
-        background: rgba(255, 255, 255, 0.025);
-      }
-
-      tbody tr:last-child td {
-        border-bottom: none;
-      }
-
-      .mono {
-        font-family: "JetBrains Mono", Consolas, monospace;
-        font-size: 12px;
-      }
-
-      .amount-positive {
-        color: #34d399;
-        font-weight: 800;
-      }
-
-      /* Profile Cards Grid */
-      .profiles-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        gap: 12px;
-      }
-
-      .profile-card {
-        background: var(--bg-soft);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
-        padding: 14px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        transition: border-color 0.15s ease;
-      }
-      .profile-card:hover {
-        border-color: var(--border-strong);
-      }
-      .profile-card.card-hit {
-        border-color: rgba(16, 185, 129, 0.55);
-        background: rgba(16, 185, 129, 0.05);
-      }
-      .profile-card.card-problem {
-        border-color: rgba(244, 63, 94, 0.55);
-        background: rgba(244, 63, 94, 0.05);
-      }
-
-      .profile-card-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-      }
-
-      .profile-title {
-        font-size: 15px;
-        font-weight: 800;
-        color: #fff;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .profile-meta {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 6px 10px;
-        font-size: 12px;
-        color: var(--muted);
-        padding: 8px 10px;
-        border-radius: 6px;
-        background: rgba(0, 0, 0, 0.22);
-      }
-
-      .profile-stats-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        font-size: 12px;
-        padding-top: 6px;
-        border-top: 1px solid var(--border);
-      }
-
-      /* Settings Grid */
-      .settings-sections {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-        gap: 16px;
-      }
-
-      .form-grid-2 {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-      }
-
-      .toast {
-        position: fixed;
-        right: 22px;
-        bottom: 22px;
-        z-index: 9999;
-        padding: 12px 18px;
-        border-radius: var(--radius-sm);
-        background: #065f46;
-        border: 1px solid #34d399;
-        color: #ecfdf5;
-        font-weight: 700;
-        box-shadow: var(--shadow);
-        opacity: 0;
-        transform: translateY(10px);
-        pointer-events: none;
-        transition: all 0.2s ease;
-      }
-      .toast.show {
-        opacity: 1;
-        transform: translateY(0);
-      }
-
-      .empty-box {
-        padding: 24px;
-        text-align: center;
-        color: var(--muted);
-        border: 1px dashed var(--border-strong);
-        border-radius: var(--radius-sm);
-      }
-
-      @media (max-width: 1100px) {
-        .kpi-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-        .grid-2, .settings-sections {
-          grid-template-columns: 1fr;
-        }
-      }
-
-      @media (max-width: 640px) {
-        .kpi-grid, .form-grid-2 {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="app-shell">
-      <!-- Top Header -->
-      <header class="topbar">
-        <div class="brand">
-          <div class="brand-logo">U3</div>
-          <div>
-            <h1 class="brand-title">
-              UHRS Control Center
-              <span class="version-pill">v3.0 PRO</span>
-            </h1>
-            <div class="brand-sub" id="headerSubText">
-              Hệ thống Điều hành Đa Profile AdsPower & Tự động Chấm HIT 63766 (100% Độc lập · Ngắt hoàn toàn Server cũ)
-            </div>
-          </div>
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">U</div>
+        <div class="brand-text">
+          <h1>UHRS Console</h1>
+          <p class="mono">App 63766 · v3.1</p>
         </div>
-        <div class="topbar-actions">
-          <button id="btnToggleSound" class="btn btn-sm" type="button">🔔 Âm báo HIT: BẬT</button>
-          <button id="btnRefreshAll" class="btn btn-sm" type="button">🔄 Làm mới dữ liệu</button>
-          <button id="btnHeaderOpenApp" class="btn btn-sm" type="button">🚀 Mở App 63766</button>
-          <button id="btnHeaderOpenSkip" class="btn btn-primary btn-sm" type="button">⚡ Mở Link Chuẩn (178599)</button>
-        </div>
-      </header>
+      </div>
 
-      <!-- 5 KPI Summary Strip -->
-      <section class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-label">
-            <span>TRẠNG THÁI PROFILE HIỆN TẠI</span>
-            <span id="kpiProfileBadge" class="badge badge-info">Default</span>
-          </div>
-          <div class="kpi-value">
-            <span id="kpiStatusDot" class="status-dot"></span>
-            <span id="kpiStatusText">Đang kiểm tra</span>
-          </div>
-          <div class="kpi-foot" id="kpiNetworkFoot">IP: Đang nhận diện...</div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">
-            <span>HIỆU SUẤT LÀM BÀI</span>
-            <span class="badge badge-hit" id="kpiAccuracyBadge">Chuẩn Sheet</span>
-          </div>
-          <div class="kpi-value" id="kpiHitSummary">0 Submit · 0 Đổi</div>
-          <div class="kpi-foot" id="kpiRejectedFoot">Từ chối: 0 câu · Đang mở: 1 tab</div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">
-            <span>THU NHẬP ƯỚC TÍNH ($/HIT)</span>
-            <span class="badge badge-hit">Live</span>
-          </div>
-          <div class="kpi-value amount-positive" id="kpiEarningsTotal">$0.0000</div>
-          <div class="kpi-foot" id="kpiEarningsToday">Hôm nay: $0.0000 · Tháng này: $0.0000</div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">
-            <span>KHO ĐÁP ÁN GOOGLE SHEET</span>
-            <span class="badge badge-info" id="kpiSheetSourceBadge">Live CSV</span>
-          </div>
-          <div class="kpi-value" id="kpiSheetTotal">0 câu</div>
-          <div class="kpi-foot" id="kpiSheetBreakdown">0 câu chấm · 0 câu Đổi</div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">
-            <span>CẤU HÌNH ĐANG CHẠY</span>
-            <span class="badge badge-hit" id="kpiModeBadge">Local v3.0</span>
-          </div>
-          <div class="kpi-value" id="kpiDelayValue">Delay 10–15s</div>
-          <div class="kpi-foot" id="kpiF5Foot">Chu kỳ F5: 5s · Tự trả lời: BẬT</div>
-        </div>
-      </section>
-
-      <!-- Main Navigation Tabs -->
-      <nav class="nav-tabs" role="tablist">
-        <button class="nav-tab active" data-tab="monitor" type="button">
-          📡 Giám Sát & Điều Khiển Đa Profile
-          <span class="nav-count" id="tabCountProfiles">1</span>
+      <div class="nav-group-label">ĐIỀU HÀNH</div>
+      <nav class="nav-list">
+        <button class="nav-tab active" data-tab="monitor">
+          <span class="nav-tab-left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+            Bàn điều khiển
+          </span>
         </button>
-        <button class="nav-tab" data-tab="sheet" type="button">
-          📚 Kho Đáp Án Google Sheet
-          <span class="nav-count" id="tabCountSheet">0</span>
+        <button class="nav-tab" data-tab="sheet">
+          <span class="nav-tab-left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+            Kho đáp án Sheet
+          </span>
+          <span class="nav-count mono" id="navSheetCount">492</span>
         </button>
-        <button class="nav-tab" data-tab="history" type="button">
-          💰 Thống Kê Thu Nhập & Nhật Ký HIT
-          <span class="nav-count" id="tabCountHistory">0</span>
+        <button class="nav-tab" data-tab="history">
+          <span class="nav-tab-left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Nhật ký & Doanh thu
+          </span>
         </button>
-        <button class="nav-tab" data-tab="settings" type="button">
-          ⚙️ Cấu Hình Hệ Thống & Kết Nối
+        <button class="nav-tab" data-tab="settings">
+          <span class="nav-tab-left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Cấu hình hệ thống
+          </span>
         </button>
       </nav>
 
-      <!-- ================= TAB 1: MONITOR & MULTI-PROFILE ================= -->
-      <div id="pane-monitor" class="tab-pane active">
-        <div class="grid-2">
-          <!-- Left: Quick Control & Delay Adjustment -->
-          <section class="panel" style="margin-bottom:0">
-            <div class="panel-head">
-              <div>
-                <h2 class="panel-title">⚡ Bảng Điều Khiển Nhanh (Profile Đang Mở)</h2>
-                <div class="panel-sub">Thao tác áp dụng tức thì cho các tab UHRS đang chạy trên trình duyệt này.</div>
-              </div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap">
-                <button id="btnCmdStartF5" class="btn btn-primary btn-sm" type="button">▶ Bật F5</button>
-                <button id="btnCmdStopF5" class="btn btn-amber btn-sm" type="button">⏸ Dừng F5</button>
-                <button id="btnCmdScanNow" class="btn btn-sm" type="button">🔍 Quét Ngay</button>
-                <button id="btnCmdShowPanel" class="btn btn-sm" type="button">🖥 Hiện Panel Nổi</button>
-              </div>
-            </div>
+      <div class="sidebar-shortcuts">
+        <div class="nav-group-label">TRUY CẬP NHANH UHRS</div>
+        <button class="shortcut-btn" id="btnHeaderOpenApp" type="button">
+          <span>HitApp 63766 Chính</span>
+          <span class="mono" style="font-size:11px;color:var(--text-muted)">↗</span>
+        </button>
+        <button class="shortcut-btn" id="btnHeaderOpenSkip" type="button">
+          <span>Nhóm Đổi Câu (178599)</span>
+          <span class="mono" style="font-size:11px;color:var(--amber)">↗</span>
+        </button>
+        <button class="shortcut-btn" id="btnOpenMarketplace" type="button">
+          <span>Trang Chợ UHRS</span>
+          <span class="mono" style="font-size:11px;color:var(--text-muted)">↗</span>
+        </button>
+      </div>
 
-            <div class="quick-controls-grid">
-              <div class="field-group">
-                <span class="field-label">Delay làm bài & đổi câu (Giây Min – Max)</span>
-                <div class="inline-inputs">
-                  <input id="quickDelayMin" class="input" type="number" min="1" max="120" value="10" title="Delay tối thiểu (giây)">
-                  <span style="color:var(--muted);font-weight:700">–</span>
-                  <input id="quickDelayMax" class="input" type="number" min="1" max="120" value="15" title="Delay tối đa (giây)">
-                </div>
-              </div>
+      <div class="sidebar-footer">
+        <div class="conn-pill">
+          <span class="status-dot dot-hit" id="headerLiveDot"></span>
+          <div style="min-width:0">
+            <div style="font-weight:500;color:var(--text);font-size:11.5px" id="headerLiveText">Đang đồng bộ</div>
+            <div class="mono" style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis" id="kpiProxyValue">JP29 · 139.190.145.67</div>
+          </div>
+        </div>
+      </div>
+    </aside>
 
-              <div class="field-group">
-                <span class="field-label">Chu kỳ F5 canh HIT (Giây)</span>
-                <input id="quickRefreshSec" class="input" type="number" min="5" max="120" value="5">
-              </div>
+    <!-- Main Area -->
+    <div class="workspace">
+      <!-- Persistent Top Command Bar (Always Accessible) -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <div class="live-indicator">
+            <span class="status-dot dot-wait" id="topStatusDot"></span>
+            <span id="kpiStatusValue" style="font-weight:600">Đang chờ HIT (F5)</span>
+          </div>
 
-              <div class="field-group">
-                <span class="field-label">Chế độ Tự động trả lời</span>
-                <label class="switch-row">
-                  <input id="quickAutoAnswer" type="checkbox" checked>
-                  <span>Tự trả lời theo Sheet</span>
-                </label>
-              </div>
+          <label class="switch-label" title="Bật/Tắt tự động làm mới trang canh HIT">
+            <input type="checkbox" class="switch-input" id="topToggleF5" checked>
+            <span>Auto F5</span>
+          </label>
 
-              <div class="field-group">
-                <button id="btnSaveQuickConfig" class="btn btn-primary" type="button" style="width:100%">
-                  💾 Lưu & Áp Dụng Ngay
-                </button>
-              </div>
-            </div>
+          <label class="switch-label" title="Bật/Tắt tự động chọn đáp án theo Google Sheet">
+            <input type="checkbox" class="switch-input" id="quickAutoAnswer" checked>
+            <span>Tự trả lời Sheet</span>
+          </label>
 
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-              <button id="btnOpenSkipGroup" class="btn btn-sm" type="button">🔀 Mở Nhóm Đổi Câu (?taskgroupid=178599)</button>
-              <button id="btnOpenPrimaryApp" class="btn btn-sm" type="button">🎯 Mở HitApp 63766 Gốc</button>
-              <button id="btnOpenMarketplace" class="btn btn-sm" type="button">🛒 Mở Chợ UHRS Marketplace</button>
-            </div>
-          </section>
+          <div class="inline-control-group" title="Thời gian chờ ngẫu nhiên trước khi bấm Submit">
+            <span>Delay</span>
+            <input type="number" id="quickDelayMin" class="inline-num" min="1" max="120" value="17">
+            <span>–</span>
+            <input type="number" id="quickDelayMax" class="inline-num" min="1" max="120" value="23">
+            <span>s</span>
+          </div>
 
-          <!-- Right: Live HIT Inspector -->
-          <section class="panel" style="margin-bottom:0">
-            <div class="panel-head">
-              <div>
-                <h2 class="panel-title">🎯 Giám Sát Câu Hỏi HIT Trực Tiếp</h2>
-                <div class="panel-sub" id="inspectorSubText">Hiển thị thời gian thực câu hỏi đang hiển thị trên tab UHRS.</div>
-              </div>
-              <span id="inspectorBadge" class="badge badge-wait">Đang chờ HIT</span>
-            </div>
+          <div class="inline-control-group" title="Chu kỳ tự động F5 khi chưa có HIT">
+            <span>F5</span>
+            <input type="number" id="quickRefreshSec" class="inline-num" min="5" max="120" value="30">
+            <span>s</span>
+          </div>
 
-            <div id="hitInspectorBox" class="hit-inspector">
-              <div id="inspectorStatusMsg" style="font-weight:600;color:var(--text)">
-                Hiện đang ở màn hình chờ (No work available). Tool đang tự động F5 canh HIT mới.
-              </div>
-              <div id="inspectorCountdownBar" class="countdown-bar" hidden>
-                <span id="inspectorCountdownLabel">Đã chọn đáp án · Đang giữ Delay...</span>
-                <span id="inspectorCountdownTimer" style="font-size:16px">0s</span>
-              </div>
-              <div class="url-box">
-                <span id="inspectorTargetUrl">Target URL: Chưa có câu hỏi HIT</span>
-                <button id="btnCopyTargetUrl" class="btn btn-sm" type="button">Copy</button>
-              </div>
-              <div id="inspectorSheetMatch" style="font-size:12.5px;color:var(--muted)">
-                Tra cứu Google Sheet: Sẵn sàng tự động đối chiếu khi có HIT.
-              </div>
-              <div id="inspectorOptionsList" class="options-pills"></div>
-            </div>
-          </section>
+          <button class="btn btn-sm btn-primary" id="btnSaveQuickConfig" type="button">Áp dụng</button>
         </div>
 
-        <!-- Multi-Profile AdsPower & Active Tabs -->
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2 class="panel-title">🌐 Danh Sách Đa Profile AdsPower & Trạng Thái Trực Tiếp</h2>
-              <div class="panel-sub">
-                Gộp chung trạng thái thực tế của các tab đang chạy và danh sách Profile quét từ AdsPower Local API (<code>:50325</code>).
+        <div class="topbar-controls">
+          <button class="btn btn-sm" id="btnCmdScanNow" type="button" title="Quét câu hỏi trên tab UHRS ngay lập tức">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Quét ngay
+          </button>
+          <button class="btn btn-sm btn-amber" id="btnOpenSkipGroup" type="button" title="Chuyển sang nhóm câu hỏi phụ ?taskgroupid=178599">
+            Đổi nhóm 178599
+          </button>
+          <button class="btn btn-sm" id="btnToggleSound" type="button" title="Bật/Tắt âm báo khi có HIT">
+            Âm báo: BẬT
+          </button>
+          <button class="btn btn-sm btn-icon" id="btnToggleTheme" type="button" title="Đổi giao diện Sáng / Tối">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+          <button class="btn btn-sm btn-icon" id="btnRefreshAll" type="button" title="Làm mới dữ liệu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Panes -->
+      <main class="content-area">
+        <!-- TAB 1: WORKBENCH -->
+        <section class="tab-pane active" id="pane-monitor">
+          <!-- Compact 4-Cell Metric Strip -->
+          <div class="metric-ribbon">
+            <div class="metric-cell">
+              <div class="metric-label">
+                <span>TRẠNG THÁI CANH HIT</span>
+                <span class="mono" id="kpiTimingValue">17–23s · F5 30s</span>
+              </div>
+              <div class="metric-val" id="kpiStatusSub">Đang treo F5 tự động</div>
+              <div class="metric-sub" id="kpiTimingSub">Tự trả lời: Đang BẬT · Chờ nạp 1500ms</div>
+            </div>
+
+            <div class="metric-cell">
+              <div class="metric-label">
+                <span>KHO ĐÁP ÁN GOOGLE SHEET</span>
+                <span class="badge badge-hit" style="font-size:10.5px;padding:1px 6px">Live Sync</span>
+              </div>
+              <div class="metric-val tabular" id="kpiSheetValue">492 câu</div>
+              <div class="metric-sub" id="kpiSheetSub">376 trả lời tự động · 116 đổi câu</div>
+            </div>
+
+            <div class="metric-cell">
+              <div class="metric-label">
+                <span>HIỆU SUẤT XỬ LÝ</span>
+                <span class="mono" style="color:var(--text-secondary)">HitApp 63766</span>
+              </div>
+              <div class="metric-val tabular" id="kpiCompletedValue">0 câu</div>
+              <div class="metric-sub" id="kpiCompletedSub">0 đổi câu (178599) · 0 từ chối</div>
+            </div>
+
+            <div class="metric-cell">
+              <div class="metric-label">
+                <span>DOANH THU ƯỚC TÍNH</span>
+                <span class="mono" id="kpiProxySub">AdsPower JP29</span>
+              </div>
+              <div class="metric-val tabular amount-positive" id="kpiEarningsValue">$0.0000</div>
+              <div class="metric-sub" id="kpiEarningsSub">Tháng này: $0.0000 · Tổng: $0.0000</div>
+            </div>
+          </div>
+
+          <!-- 2-Column Workbench -->
+          <div class="workbench-grid">
+            <!-- Left Column: Profile & Tab Table -->
+            <div class="section-card">
+              <div class="section-header">
+                <div class="section-title">
+                  <span>Danh sách Profile AdsPower & Tab UHRS</span>
+                  <span class="badge mono" id="profileTotalBadge">1</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <div class="segmented" id="profileFilterPills">
+                    <button class="filter-pill active" data-filter="all" type="button">Tất cả</button>
+                    <button class="filter-pill" data-filter="hit" type="button">Có HIT</button>
+                    <button class="filter-pill" data-filter="waiting" type="button">Đang chờ</button>
+                    <button class="filter-pill" data-filter="problem" type="button">Cần chú ý</button>
+                  </div>
+                  <input type="text" id="profileSearchInput" class="input" placeholder="Tìm Profile, IP..." style="width:140px">
+                  <button class="btn btn-sm" id="btnScanAdsPower" type="button">Quét AdsPower</button>
+                </div>
+              </div>
+
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Profile</th>
+                      <th>Mạng / IP</th>
+                      <th>Trạng thái</th>
+                      <th>Chi tiết / Câu hỏi đang mở</th>
+                      <th>Kết quả</th>
+                      <th style="text-align:right">Điều khiển</th>
+                    </tr>
+                  </thead>
+                  <tbody id="profilesTableBody">
+                    <tr><td colspan="6" class="empty-box">Đang tải danh sách Profile...</td></tr>
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button id="btnScanAdsPower" class="btn btn-sm" type="button">🔄 Quét danh sách AdsPower (:50325)</button>
+
+            <!-- Right Column: Live HIT Inspector + Instant Sheet Lookup -->
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <!-- Live HIT Inspector -->
+              <div class="section-card">
+                <div class="section-header">
+                  <div class="section-title">Trạm quan sát HIT trực tiếp</div>
+                  <span class="badge" id="liveHitBadge">Đang chờ HIT</span>
+                </div>
+                <div class="section-body">
+                  <div style="font-size:11.5px;color:var(--text-muted)">URL BÀI KIỂM TRA (TARGET URL)</div>
+                  <div class="url-box">
+                    <div class="url-text mono" id="liveTargetUrlText">Chưa có bài HIT nào đang mở trên màn hình</div>
+                    <div style="display:flex;gap:6px;flex-shrink:0">
+                      <button class="btn btn-sm" id="btnCopyTargetUrl" type="button">Copy</button>
+                      <a class="btn btn-sm" id="btnOpenTargetUrl" href="#" target="_blank" rel="noopener" style="display:none">Mở ↗</a>
+                    </div>
+                  </div>
+
+                  <div style="margin-top:12px">
+                    <div class="inspector-row">
+                      <span class="inspector-key">Nội dung câu hỏi</span>
+                      <span class="inspector-val" id="liveQuestionText">Đang canh F5 tự động...</span>
+                    </div>
+                    <div class="inspector-row">
+                      <span class="inspector-key">Đáp án khớp Sheet</span>
+                      <span class="inspector-val mono" id="liveMatchedAnswer" style="font-weight:600">Chưa khớp</span>
+                    </div>
+                    <div class="inspector-row">
+                      <span class="inspector-key">Trạng thái xử lý</span>
+                      <span class="inspector-val" id="liveActionState">Chờ HIT xuất hiện</span>
+                    </div>
+                    <div class="inspector-row">
+                      <span class="inspector-key">Thông báo UHRS</span>
+                      <span class="inspector-val" id="livePageMessage" style="color:var(--text-secondary)">No work available right now.</span>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+                    <button class="btn btn-sm btn-emerald" id="btnCmdStartF5" type="button">Bật F5</button>
+                    <button class="btn btn-sm btn-rose" id="btnCmdStopF5" type="button">Dừng F5</button>
+                    <button class="btn btn-sm" id="btnCmdShowPanel" type="button">Hiện bảng nổi</button>
+                    <button class="btn btn-sm" id="btnOpenPrimaryApp" type="button" style="margin-left:auto">Mở App 63766 ↗</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Instant Sheet Lookup & Quick Add right on the Workbench -->
+              <div class="section-card">
+                <div class="section-header">
+                  <div class="section-title">Tra cứu & Ghi đè nhanh đáp án</div>
+                  <span class="mono" style="font-size:11px;color:var(--text-muted)">492 dòng Sheet</span>
+                </div>
+                <div class="section-body">
+                  <input type="text" id="quickLookupInput" class="input mono" placeholder="Dán hoặc gõ URL cần tra cứu nhanh trong 492 câu..." style="width:100%">
+                  <div class="lookup-result" id="quickLookupResult">
+                    <span style="color:var(--text-muted)">Nhập một phần URL hoặc domain để kiểm tra đáp án ngay tại đây.</span>
+                  </div>
+
+                  <form id="customMemoryForm" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px">
+                    <div style="font-size:11.5px;font-weight:500;color:var(--text-secondary)">Thêm / Ghi đè đáp án mới vào máy</div>
+                    <input type="text" id="customMemUrl" class="input mono" placeholder="https://example.com/..." required style="width:100%">
+                    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px">
+                      <select id="customMemAnswer" class="select">
+                        <option value="1">1 · Not Junk (Bình thường)</option>
+                        <option value="2">2 · Error / Page not found</option>
+                        <option value="4">4 · Low or no content</option>
+                        <option value="3">3 · Site unreachable</option>
+                        <option value="5">5 · Mostly ads / spam</option>
+                        <option value="2Đ">2Đ · Đổi câu (178599)</option>
+                      </select>
+                      <input type="text" id="customMemNote" class="input" placeholder="Ghi chú (tùy chọn)">
+                      <button type="submit" class="btn btn-primary">Lưu</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
           </div>
-
-          <div class="toolbar">
-            <div class="filter-pills" id="profileFilterPills">
-              <button class="filter-pill active" data-filter="all" type="button">Tất cả</button>
-              <button class="filter-pill" data-filter="active" type="button">Đang mở / Hoạt động</button>
-              <button class="filter-pill" data-filter="hit" type="button">Đang có HIT</button>
-              <button class="filter-pill" data-filter="waiting" type="button">Đang chờ 20p (F5)</button>
-              <button class="filter-pill" data-filter="problem" type="button">Cần xử lý (2FA / Lỗi)</button>
-            </div>
-            <input id="profileSearchInput" class="input search-input" type="search" placeholder="Tìm theo tên Profile (VD: JP29), IP, Proxy, Quốc gia...">
-          </div>
-
-          <div id="profilesContainer" class="profiles-grid"></div>
         </section>
-      </div>
 
-      <!-- ================= TAB 2: GOOGLE SHEET MEMORY ================= -->
-      <div id="pane-sheet" class="tab-pane">
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2 class="panel-title">📚 Kho Đáp Án Google Sheet Trực Tiếp (App 63766)</h2>
-              <div class="panel-sub" id="sheetSyncMetaText">
-                Đồng bộ trực tiếp từ Google Sheet chuẩn · Tự động nhận diện các dòng đánh dấu "Đổi câu" và 7 đáp án Junk Type.
+        <!-- TAB 2: GOOGLE SHEET KNOWLEDGE BASE -->
+        <section class="tab-pane" id="pane-sheet">
+          <div class="section-card">
+            <div class="section-header">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <div class="section-title">Kho đáp án Google Sheet</div>
+                <div class="segmented" id="sheetFilterPills">
+                  <button class="filter-pill active" data-sheet-filter="all" type="button">Tất cả (<span id="sheetStatTotal">0</span>)</button>
+                  <button class="filter-pill" data-sheet-filter="normal" type="button">Trả lời tự động (<span id="sheetStatNormal">0</span>)</button>
+                  <button class="filter-pill" data-sheet-filter="skip" type="button">Đổi câu (<span id="sheetStatSkip">0</span>)</button>
+                  <button class="filter-pill" data-sheet-filter="local" type="button">Lưu tại máy (<span id="sheetStatLocal">0</span>)</button>
+                </div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <input type="text" id="sheetSearchInput" class="input mono" placeholder="Tìm theo URL, mã đáp án, ghi chú..." style="width:260px">
+                <button class="btn btn-sm btn-primary" id="btnForceSyncSheet" type="button">Đồng bộ Sheet</button>
+                <a class="btn btn-sm" id="linkOpenGoogleSheet" href="https://docs.google.com/spreadsheets/d/1YsI4jFvSIqbsGn6aXCfi84g5jNP3hqcQeWgsrKwk_ys/edit#gid=1271800557" target="_blank" rel="noopener">Mở Google Sheet ↗</a>
               </div>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button id="btnForceSyncSheet" class="btn btn-primary btn-sm" type="button">🔄 Tải lại từ Google Sheet ngay</button>
-              <a id="linkOpenGoogleSheet" class="btn btn-sm" href="https://docs.google.com/spreadsheets/d/1YsI4jFvSIqbsGn6aXCfi84g5jNP3hqcQeWgsrKwk_ys/edit#gid=1271800557" target="_blank" rel="noreferrer">📄 Mở Google Sheet Gốc</a>
-            </div>
-          </div>
 
-          <div class="toolbar">
-            <div class="filter-pills" id="sheetFilterPills">
-              <button class="filter-pill active" data-sheet-filter="all" type="button">Tất cả</button>
-              <button class="filter-pill" data-sheet-filter="skip" type="button">🔀 Câu Đổi (Đổi câu)</button>
-              <button class="filter-pill" data-sheet-filter="not_junk" type="button">✅ Not Junk</button>
-              <button class="filter-pill" data-sheet-filter="error" type="button">⚠️ Page Error / Unreachable</button>
-              <button class="filter-pill" data-sheet-filter="low_content" type="button">📉 Low Content / Ads</button>
-              <button class="filter-pill" data-sheet-filter="local" type="button">📌 Ghi nhớ bổ sung (Local)</button>
+            <div class="table-container" style="max-height:calc(100vh - 160px);overflow-y:auto">
+              <table>
+                <thead style="position:sticky;top:0;z-index:5">
+                  <tr>
+                    <th style="width:56px">#</th>
+                    <th>Target URL / Câu hỏi</th>
+                    <th style="width:210px">Đáp án (HitApp 63766)</th>
+                    <th style="width:170px">Hành động tự động</th>
+                    <th>Ghi chú</th>
+                    <th style="width:80px;text-align:right">Copy</th>
+                  </tr>
+                </thead>
+                <tbody id="sheetTableBody">
+                  <tr><td colspan="6" class="empty-box">Đang tải dữ liệu từ Google Sheet...</td></tr>
+                </tbody>
+              </table>
             </div>
-            <input id="sheetSearchInput" class="input search-input" type="search" placeholder="Tra cứu nhanh URL, tên miền hoặc đáp án trong Sheet...">
-          </div>
-
-          <!-- Quick Add Custom Memory Override -->
-          <div style="padding:12px;border-radius:8px;background:var(--bg-soft);border:1px solid var(--border);margin-bottom:14px">
-            <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--sky)">
-              ➕ Thêm / Ghi đè đáp án nhanh tại máy (Áp dụng ngay cả khi chưa kịp sửa Google Sheet)
-            </div>
-            <form id="customMemoryForm" style="display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:8px;align-items:center">
-              <input id="customMemUrl" class="input" type="text" placeholder="Nhập Target URL (VD: https://example.com/page)" required>
-              <select id="customMemAnswer" class="select">
-                <option value="Đổi câu">🔀 Đổi câu (Chuyển sang Link đổi câu)</option>
-                <option value="Not Junk">Not Junk</option>
-                <option value="Error / Page not found / No results">Error / Page not found / No results</option>
-                <option value="Site unreachable">Site unreachable</option>
-                <option value="Low or no content">Low or no content</option>
-                <option value="Mostly ads / spam">Mostly ads / spam</option>
-                <option value="Auto redirect">Auto redirect</option>
-                <option value="Can't judge">Can't judge</option>
-              </select>
-              <input id="customMemNote" class="input" type="text" placeholder="Ghi chú (không bắt buộc)">
-              <button class="btn btn-primary" type="submit">Lưu Đáp Án</button>
-            </form>
-          </div>
-
-          <div class="table-wrap" style="max-height:580px;overflow-y:auto">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:64px">#</th>
-                  <th>Target URL / Đường dẫn câu hỏi</th>
-                  <th style="width:260px">Đáp án / Hành động</th>
-                  <th style="width:240px">Ghi chú & Nguồn</th>
-                  <th style="width:90px">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody id="sheetTableBody"></tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-
-      <!-- ================= TAB 3: EARNINGS & ACTIVITY LOG ================= -->
-      <div id="pane-history" class="tab-pane">
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2 class="panel-title">💰 Thống Kê Thu Nhập & Hiệu Suất Theo Profile / Proxy</h2>
-              <div class="panel-sub">Tự động tổng hợp số câu đã Submit thành công, số câu Đổi và tiền thưởng ước tính theo từng Profile AdsPower.</div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button id="btnExportCsv" class="btn btn-sm" type="button">📥 Xuất Báo Cáo CSV</button>
-              <button id="btnClearHistory" class="btn btn-danger btn-sm" type="button">🗑 Xóa Lịch Sử Máy Này</button>
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Profile AdsPower</th>
-                  <th>Proxy / IP & Vùng Mạng</th>
-                  <th>Đã Submit</th>
-                  <th>Đã Đổi Câu</th>
-                  <th>Bị Từ Chối</th>
-                  <th>Hôm Nay ($)</th>
-                  <th>Tháng Này ($)</th>
-                  <th>Tổng Cộng ($)</th>
-                </tr>
-              </thead>
-              <tbody id="earningsTableBody"></tbody>
-            </table>
           </div>
         </section>
 
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2 class="panel-title">📋 Nhật Ký Làm Bài & Sự Kiện Chi Tiết</h2>
-              <div class="panel-sub">Theo dõi từng câu hỏi đã xử lý, thời gian giữ Delay trước khi Submit/Đổi câu và trạng thái phản hồi từ UHRS.</div>
+        <!-- TAB 3: EARNINGS & HIT LOGS -->
+        <section class="tab-pane" id="pane-history">
+          <div class="metric-ribbon">
+            <div class="metric-cell">
+              <div class="metric-label">DOANH THU HÔM NAY</div>
+              <div class="metric-val amount-positive" id="earnTodayValue">$0.0000</div>
+              <div class="metric-sub" id="earnTodayHits">0 câu hoàn thành hôm nay</div>
             </div>
-            <div class="filter-pills" id="historyFilterPills">
-              <button class="filter-pill active" data-hist-filter="questions" type="button">Lịch sử Câu hỏi (Submit / Đổi / Từ chối)</button>
-              <button class="filter-pill" data-hist-filter="completed" type="button">Chỉ câu Đã Submit</button>
-              <button class="filter-pill" data-hist-filter="skipped" type="button">Chỉ câu Đã Đổi</button>
-              <button class="filter-pill" data-hist-filter="rejected" type="button">Bị Từ Chối</button>
-              <button class="filter-pill" data-hist-filter="events" type="button">Nhật ký Sự kiện Hệ thống</button>
+            <div class="metric-cell">
+              <div class="metric-label">DOANH THU THÁNG NÀY</div>
+              <div class="metric-val amount-positive" id="earnMonthValue">$0.0000</div>
+              <div class="metric-sub" id="earnMonthHits">0 câu hoàn thành trong tháng</div>
+            </div>
+            <div class="metric-cell">
+              <div class="metric-label">TỔNG THU NHẬP TÍCH LŨY</div>
+              <div class="metric-val amount-positive" id="earnTotalValue">$0.0000</div>
+              <div class="metric-sub" id="earnTotalHits">Đơn giá chuẩn: $0.030 / HIT</div>
+            </div>
+            <div class="metric-cell">
+              <div class="metric-label">TỶ LỆ ĐỔI CÂU (178599)</div>
+              <div class="metric-val tabular" id="earnSkipCount">0 lần</div>
+              <div class="metric-sub" id="earnRejectCount">0 lần bị từ chối</div>
             </div>
           </div>
 
-          <div class="table-wrap" style="max-height:520px;overflow-y:auto">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:155px">Thời gian</th>
-                  <th style="width:110px">Profile</th>
-                  <th style="width:150px">Trạng thái</th>
-                  <th>Target URL / Nội dung</th>
-                  <th style="width:220px">Đáp án / Chi tiết</th>
-                  <th style="width:100px">Delay / Tiền</th>
-                </tr>
-              </thead>
-              <tbody id="historyTableBody"></tbody>
-            </table>
+          <div class="section-card" style="margin-bottom:16px">
+            <div class="section-header">
+              <div class="section-title">Tổng hợp hiệu suất theo Profile & Proxy</div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-sm" id="btnExportCsv" type="button">Xuất báo cáo CSV</button>
+                <button class="btn btn-sm btn-rose" id="btnClearHistory" type="button">Xóa lịch sử</button>
+              </div>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Profile</th>
+                    <th>IP / Proxy</th>
+                    <th>Đã Submit</th>
+                    <th>Đã Đổi câu</th>
+                    <th>Bị từ chối</th>
+                    <th>Hôm nay</th>
+                    <th>Tháng này</th>
+                    <th>Tổng cộng</th>
+                  </tr>
+                </thead>
+                <tbody id="earningsByProfileBody">
+                  <tr><td colspan="8" class="empty-box">Chưa có dữ liệu thống kê theo Profile.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-header">
+              <div class="section-title">Nhật ký xử lý câu hỏi & Sự kiện</div>
+              <div class="segmented" id="historyFilterPills">
+                <button class="filter-pill active" data-hist-filter="questions" type="button">Tất cả câu hỏi</button>
+                <button class="filter-pill" data-hist-filter="completed" type="button">Đã Submit</button>
+                <button class="filter-pill" data-hist-filter="skipped" type="button">Đã Đổi câu</button>
+                <button class="filter-pill" data-hist-filter="rejected" type="button">Bị từ chối</button>
+                <button class="filter-pill" data-hist-filter="events" type="button">Sự kiện hệ thống</button>
+              </div>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:155px">Thời gian</th>
+                    <th style="width:110px">Profile</th>
+                    <th style="width:140px">Trạng thái</th>
+                    <th>Target URL / Câu hỏi</th>
+                    <th>Đáp án / Chi tiết</th>
+                    <th style="width:120px">Thời gian / Thưởng</th>
+                  </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                  <tr><td colspan="6" class="empty-box">Chưa có lịch sử câu hỏi nào.</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
-      </div>
 
-      <!-- ================= TAB 4: SYSTEM SETTINGS ================= -->
-      <div id="pane-settings" class="tab-pane">
-        <form id="fullSettingsForm">
-          <div class="settings-sections">
-            <!-- Section 1: HitApp & Automation -->
-            <section class="panel" style="margin-bottom:0">
-              <div class="panel-head">
-                <div>
-                  <h2 class="panel-title">🤖 Cấu Hình Tự Động Làm Bài & Canh HIT</h2>
-                  <div class="panel-sub">Thiết lập tốc độ F5, khoảng thời gian chờ Delay mỗi câu và quy tắc xử lý HitApp 63766.</div>
+        <!-- TAB 4: SYSTEM SETTINGS -->
+        <section class="tab-pane" id="pane-settings">
+          <form id="fullSettingsForm">
+            <div class="settings-group">
+              <div class="settings-group-title">1. Cấu hình HitApp & Tốc độ xử lý</div>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <h4>Mã HitApp chính & Nhóm đổi câu phụ</h4>
+                  <p>Khi gặp đáp án "Đổi câu" (2Đ), hệ thống tự động chuyển sang nhóm câu hỏi phụ.</p>
+                </div>
+                <div class="setting-control">
+                  <span style="font-size:12px;color:var(--text-muted)">App ID:</span>
+                  <input type="text" id="setAppId" class="input mono" value="63766" style="width:90px">
+                  <span style="font-size:12px;color:var(--text-muted)">TaskGroup:</span>
+                  <input type="text" id="setSkipGroup" class="input mono" value="178599" style="width:100px">
                 </div>
               </div>
 
-              <div style="display:grid;gap:12px">
-                <div class="form-grid-2">
-                  <div class="field-group">
-                    <label class="field-label" for="setAppId">Mã HitApp ID</label>
-                    <input id="setAppId" class="input" type="text" value="63766">
-                  </div>
-                  <div class="field-group">
-                    <label class="field-label" for="setSkipGroup">Mã TaskGroup Đổi Câu</label>
-                    <input id="setSkipGroup" class="input" type="text" value="178599">
-                  </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <h4>Khoảng trễ trước khi bấm Submit (Delay Min – Max)</h4>
+                  <p>Hệ thống chọn ngẫu nhiên số giây trong khoảng này trước khi gửi đáp án.</p>
                 </div>
-
-                <div class="form-grid-2">
-                  <div class="field-group">
-                    <label class="field-label" for="setDelayMin">Delay Tối Thiểu Mỗi Câu (Giây)</label>
-                    <input id="setDelayMin" class="input" type="number" min="1" max="120" value="10">
-                  </div>
-                  <div class="field-group">
-                    <label class="field-label" for="setDelayMax">Delay Tối Đa Mỗi Câu (Giây)</label>
-                    <input id="setDelayMax" class="input" type="number" min="1" max="120" value="15">
-                  </div>
-                </div>
-
-                <div class="form-grid-2">
-                  <div class="field-group">
-                    <label class="field-label" for="setRefreshSec">Chu Kỳ F5 Khi Chờ HIT (Giây)</label>
-                    <input id="setRefreshSec" class="input" type="number" min="5" max="120" value="5">
-                  </div>
-                  <div class="field-group">
-                    <label class="field-label" for="setSettleMs">Độ Trễ Ổn Định DOM Trước Khi Chọn (ms)</label>
-                    <input id="setSettleMs" class="input" type="number" min="800" max="5000" step="100" value="1500">
-                  </div>
-                </div>
-
-                <label class="switch-row">
-                  <input id="setEnabledF5" type="checkbox" checked>
-                  <span>Tự động F5 canh HIT mới khi màn hình báo hết việc (No work / 20 phút)</span>
-                </label>
-
-                <label class="switch-row">
-                  <input id="setAutoAnswer" type="checkbox" checked>
-                  <span>Tự động chọn đáp án từ Google Sheet & tự động Đổi câu (sau khi chờ đủ Delay)</span>
-                </label>
-
-                <label class="switch-row">
-                  <input id="setStopOnNoHit" type="checkbox">
-                  <span>Dừng F5 ngay khi gặp thông báo hết HIT (Stop when No HIT)</span>
-                </label>
-
-                <label class="switch-row">
-                  <input id="setAutoOpenTask" type="checkbox">
-                  <span>Tự động bấm mở HitApp khi đang ở ngoài trang Marketplace</span>
-                </label>
-              </div>
-            </section>
-
-            <!-- Section 2: Profile, AdsPower & Google Sheet -->
-            <section class="panel" style="margin-bottom:0">
-              <div class="panel-head">
-                <div>
-                  <h2 class="panel-title">🌐 Nhận Diện Profile AdsPower & Nguồn Google Sheet</h2>
-                  <div class="panel-sub">Tự động lấy tên Profile (<code>JP29</code>, <code>JP30</code>...), Proxy và đồng bộ đáp án trực tiếp từ Google Sheet.</div>
+                <div class="setting-control">
+                  <input type="number" id="setDelayMin" class="input mono" min="1" max="120" value="17" style="width:76px">
+                  <span>đến</span>
+                  <input type="number" id="setDelayMax" class="input mono" min="1" max="120" value="23" style="width:76px">
+                  <span style="color:var(--text-muted)">giây</span>
                 </div>
               </div>
 
-              <div style="display:grid;gap:12px">
-                <div class="form-grid-2">
-                  <div class="field-group">
-                    <label class="field-label" for="setProfileName">Tên Profile Dự Phòng (Tự nhận nếu để trống)</label>
-                    <input id="setProfileName" class="input" type="text" placeholder="VD: JP29">
-                  </div>
-                  <div class="field-group">
-                    <label class="field-label" for="setUserName">Tên Người Vận Hành / Ca Làm</label>
-                    <input id="setUserName" class="input" type="text" placeholder="VD: Ca ngày / Máy 01">
-                  </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <h4>Chu kỳ tự động F5 & Thời gian chờ ổn định DOM</h4>
+                  <p>Thời gian làm mới trang khi chờ HIT và độ trễ chờ trang tải xong trước khi điền.</p>
                 </div>
-
-                <div class="form-grid-2">
-                  <div class="field-group">
-                    <label class="field-label" for="setProxyName">Nhãn Proxy (Tự lấy từ AdsPower nếu để trống)</label>
-                    <input id="setProxyName" class="input" type="text" placeholder="VD: JP-Proxy-29">
-                  </div>
-                  <div class="field-group">
-                    <label class="field-label" for="setAdsPowerUrl">Địa chỉ AdsPower Local API</label>
-                    <input id="setAdsPowerUrl" class="input" type="url" value="http://local.adspower.net:50325">
-                  </div>
-                </div>
-
-                <label class="switch-row">
-                  <input id="setAdsPowerEnabled" type="checkbox" checked>
-                  <span>Tự động quét danh sách Profile & Proxy từ AdsPower Local API (:50325)</span>
-                </label>
-
-                <label class="switch-row">
-                  <input id="setNetworkIdentity" type="checkbox" checked>
-                  <span>Hiển thị IP Public, Quốc gia và Nhà mạng thực tế của từng Profile</span>
-                </label>
-
-                <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
-
-                <div class="form-grid-2">
-                  <div class="field-group">
-                    <label class="field-label" for="setSheetId">Google Spreadsheet ID</label>
-                    <input id="setSheetId" class="input mono" type="text" value="1YsI4jFvSIqbsGn6aXCfi84g5jNP3hqcQeWgsrKwk_ys">
-                  </div>
-                  <div class="field-group">
-                    <label class="field-label" for="setSheetGid">Sheet GID (Tab ID)</label>
-                    <input id="setSheetGid" class="input mono" type="text" value="1271800557">
-                  </div>
-                </div>
-
-                <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
-
-                <label class="switch-row">
-                  <input id="setRemoteServerEnabled" type="checkbox">
-                  <span>Bật đồng bộ thêm về Hub Server riêng (Chỉ bật khi cần gom nhiều máy về 1 Server riêng)</span>
-                </label>
-
-                <div class="field-group">
-                  <label class="field-label" for="setServerBaseUrl">Địa chỉ Hub Server Riêng (Mặc định: http://127.0.0.1:8790 — Không dùng Vercel cũ)</label>
-                  <input id="setServerBaseUrl" class="input mono" type="url" value="http://127.0.0.1:8790">
+                <div class="setting-control">
+                  <span style="font-size:12px;color:var(--text-muted)">F5 (giây):</span>
+                  <input type="number" id="setRefreshSec" class="input mono" min="5" max="120" value="30" style="width:76px">
+                  <span style="font-size:12px;color:var(--text-muted)">Settle (ms):</span>
+                  <input type="number" id="setSettleMs" class="input mono" min="500" max="5000" step="100" value="1500" style="width:86px">
                 </div>
               </div>
-            </section>
-          </div>
 
-          <div style="margin-top:16px;display:flex;align-items:center;justify-content:flex-end;gap:12px">
-            <button id="btnResetDefaults" class="btn" type="button">Khôi phục mặc định chuẩn</button>
-            <button class="btn btn-primary" type="submit" style="min-width:220px">💾 Lưu Toàn Bộ Thiết Lập Hệ Thống</button>
-          </div>
-        </form>
-      </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <h4>Chế độ tự động vận hành</h4>
+                  <p>Bật hoặc tắt các tính năng tự động làm mới, tự động trả lời và tự mở bài.</p>
+                </div>
+                <div class="setting-control" style="flex-wrap:wrap">
+                  <label class="switch-label"><input type="checkbox" class="switch-input" id="setEnabledF5" checked><span>Auto F5</span></label>
+                  <label class="switch-label"><input type="checkbox" class="switch-input" id="setAutoAnswer" checked><span>Tự trả lời</span></label>
+                  <label class="switch-label"><input type="checkbox" class="switch-input" id="setStopOnNoHit"><span>Dừng khi hết HIT</span></label>
+                  <label class="switch-label"><input type="checkbox" class="switch-input" id="setAutoOpenTask"><span>Tự mở từ Chợ</span></label>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-group-title">2. Kết nối Google Sheet, AdsPower & Máy chủ Hub</div>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <h4>Nguồn dữ liệu Google Sheet</h4>
+                  <p>Spreadsheet ID và GID của bảng đáp án trực tuyến (492 câu).</p>
+                </div>
+                <div class="setting-control">
+                  <input type="text" id="setSheetId" class="input mono" style="width:310px" placeholder="Spreadsheet ID">
+                  <input type="text" id="setSheetGid" class="input mono" style="width:110px" placeholder="GID">
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <h4>Định danh Profile & AdsPower Local API</h4>
+                  <p>Tự động lấy tên Profile (JP29) và IP/Proxy từ AdsPower Local API.</p>
+                </div>
+                <div class="setting-control">
+                  <input type="text" id="setProfileName" class="input" placeholder="Tên Profile (VD: JP29)" style="width:130px">
+                  <input type="text" id="setUserName" class="input" placeholder="Người vận hành" style="width:120px">
+                  <input type="text" id="setProxyName" class="input" placeholder="Ghi chú Proxy" style="width:120px">
+                  <input type="text" id="setAdsPowerUrl" class="input mono" value="http://local.adspower.net:50325" style="width:210px">
+                  <label class="switch-label"><input type="checkbox" class="switch-input" id="setAdsPowerEnabled" checked><span>AdsPower API</span></label>
+                  <label class="switch-label"><input type="checkbox" class="switch-input" id="setNetworkIdentity" checked><span>Dò IP</span></label>
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-info">
+                  <h4>Đồng bộ Máy chủ Hub (Local / Cloud Tunnel)</h4>
+                  <p>Cho phép gom dữ liệu nhiều Profile về Hub Server (`http://127.0.0.1:8790` hoặc link Public).</p>
+                </div>
+                <div class="setting-control">
+                  <label class="switch-label"><input type="checkbox" class="switch-input" id="setRemoteServerEnabled" checked><span>Đồng bộ Hub</span></label>
+                  <input type="text" id="setServerBaseUrl" class="input mono" value="http://127.0.0.1:8790" style="width:260px">
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:10px">
+              <button type="button" class="btn" id="btnResetDefaults">Khôi phục mặc định</button>
+              <button type="submit" class="btn btn-primary">Lưu toàn bộ cấu hình</button>
+            </div>
+          </form>
+        </section>
+      </main>
     </div>
+  </div>
 
-    <div id="toast" class="toast" role="status" aria-live="polite">Đã lưu thiết lập!</div>
+  <div class="toast" id="toast"></div>
 
-    <script src="answer-memory.js"></script>
-    <script src="dashboard.js"></script>
-  </body>
+  <script src="answer-memory.js"></script>
+  <script src="dashboard.js"></script>
+</body>
 </html>

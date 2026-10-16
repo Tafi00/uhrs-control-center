@@ -1,6 +1,6 @@
 (() => {
   const DEFAULT_SETTINGS = {
-    remoteServerEnabled: false,
+    remoteServerEnabled: true,
     serverUrl: "http://127.0.0.1:8790/api/action",
     configUrl: "http://127.0.0.1:8790/api/settings",
     commandUrl: "http://127.0.0.1:8790/api/commands",
@@ -25,9 +25,9 @@
     skipTaskGroupId: "178599",
     sheetId: "1YsI4jFvSIqbsGn6aXCfi84g5jNP3hqcQeWgsrKwk_ys",
     sheetGid: "1271800557",
-    refreshSeconds: 5,
-    answerDelayMinSeconds: 10,
-    answerDelayMaxSeconds: 15,
+    refreshSeconds: 30,
+    answerDelayMinSeconds: 17,
+    answerDelayMaxSeconds: 23,
     autoAnswerSettleMs: 1500,
     enabled: true,
     autoAnswerEnabled: true,
@@ -39,6 +39,7 @@
 
   const state = {
     activeTab: new URL(location.href).searchParams.get("tab") || "monitor",
+    theme: localStorage.getItem("uhrsDashTheme") || "dark",
     soundEnabled: localStorage.getItem("uhrsDashSound") !== "false",
     lastSoundAlertAt: "",
     settings: { ...DEFAULT_SETTINGS },
@@ -48,19 +49,29 @@
     adsPowerProfiles: [],
     sheetRecords: [],
     localLearnedRecords: [],
-    sheetSourceLabel: "Google Sheet Live",
+    sheetSourceLabel: "Live Google Sheet",
     questionHistory: [],
     eventHistory: [],
     profileFilter: "all",
     profileSearch: "",
     sheetFilter: "all",
     sheetSearch: "",
-    historyFilter: "questions"
+    historyFilter: "questions",
+    quickLookupQuery: ""
   };
 
   function $(id) {
     return document.getElementById(id);
   }
+
+  function applyTheme(theme) {
+    const valid = theme === "light" ? "light" : "dark";
+    state.theme = valid;
+    document.documentElement.setAttribute("data-theme", valid);
+    localStorage.setItem("uhrsDashTheme", valid);
+  }
+
+  applyTheme(state.theme);
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, ch => ({
@@ -78,7 +89,7 @@
     el.textContent = text;
     el.classList.add("show");
     clearTimeout(showToast._timer);
-    showToast._timer = setTimeout(() => el.classList.remove("show"), 2600);
+    showToast._timer = setTimeout(() => el.classList.remove("show"), 2400);
   }
 
   function playHitBeep() {
@@ -102,17 +113,18 @@
 
   function statusMeta(status) {
     const map = {
-      hit_available: { label: "Đang xử lý HIT", badge: "badge-hit", dot: "dot-hit", card: "card-hit" },
-      marketplace_available: { label: "Chợ có Task", badge: "badge-info", dot: "dot-hit", card: "" },
-      waiting_20m: { label: "Đang chờ HIT (F5)", badge: "badge-wait", dot: "dot-wait", card: "" },
-      waiting: { label: "Đang chờ HIT (F5)", badge: "badge-wait", dot: "dot-wait", card: "" },
-      two_factor: { label: "Cần xác minh 2FA", badge: "badge-danger", dot: "dot-danger", card: "card-problem" },
-      answer_rejected: { label: "Đáp án bị từ chối", badge: "badge-danger", dot: "dot-danger", card: "card-problem" },
-      error: { label: "Cần kiểm tra lỗi", badge: "badge-danger", dot: "dot-danger", card: "card-problem" },
-      watcher_started: { label: "Đang hoạt động", badge: "badge-info", dot: "", card: "" },
-      idle: { label: "Đang sẵn sàng", badge: "badge-info", dot: "", card: "" }
+      hit_available: { label: "Đang xử lý HIT", badge: "badge-hit", dot: "dot-hit" },
+      marketplace_available: { label: "Chợ có Task", badge: "badge-info", dot: "dot-hit" },
+      waiting_20m: { label: "Đang chờ HIT (F5)", badge: "badge-wait", dot: "dot-wait" },
+      waiting: { label: "Đang chờ HIT (F5)", badge: "badge-wait", dot: "dot-wait" },
+      two_factor: { label: "Cần xác minh 2FA", badge: "badge-danger", dot: "dot-danger" },
+      answer_rejected: { label: "Đáp án bị từ chối", badge: "badge-danger", dot: "dot-danger" },
+      error: { label: "Cần kiểm tra lỗi", badge: "badge-danger", dot: "dot-danger" },
+      watcher_started: { label: "Đang hoạt động", badge: "badge-info", dot: "dot-hit" },
+      idle: { label: "Đang sẵn sàng", badge: "badge-info", dot: "dot-wait" },
+      offline: { label: "Chưa mở tab", badge: "", dot: "" }
     };
-    return map[status] || { label: status || "Chưa hoạt động", badge: "", dot: "", card: "" };
+    return map[status] || { label: status || "Đang chờ", badge: "", dot: "" };
   }
 
   function isSkipAnswerText(answer) {
@@ -123,7 +135,7 @@
   function describeSheetAnswer(answer) {
     const raw = String(answer || "").trim();
     if (!raw) return "";
-    if (isSkipAnswerText(raw)) return `${raw} — Đổi câu`;
+    if (isSkipAnswerText(raw)) return `${raw} · Đổi câu`;
     const numMatch = raw.match(/^([1-7])\b/);
     if (!numMatch) return raw;
     const codeMap = {
@@ -179,54 +191,7 @@
     } catch {}
   }
 
-  /* Data Loading */
-  async function loadLocalExtensionState() {
-    if (!isExtensionEnv) {
-      await loadStandaloneServerState();
-      return;
-    }
-    return new Promise(resolve => {
-      chrome.storage.local.get(null, stored => {
-        const mergedSettings = { ...DEFAULT_SETTINGS };
-        for (const key of Object.keys(DEFAULT_SETTINGS)) {
-          if (key in stored && stored[key] !== undefined) {
-            mergedSettings[key] = stored[key];
-          }
-        }
-        if (/hit-watch-server\.vercel\.app/i.test(String(mergedSettings.serverUrl || ""))) {
-          mergedSettings.serverUrl = "http://127.0.0.1:8790/api/action";
-          mergedSettings.remoteServerEnabled = false;
-        }
-        state.settings = mergedSettings;
-
-        const tabStates = {};
-        let newestState = stored.uhrsLatestActiveState || null;
-        for (const [k, v] of Object.entries(stored)) {
-          if (k.startsWith("uhrsWatcherState:") && v && typeof v === "object") {
-            tabStates[v.tabId || k] = v;
-            if (!newestState || Date.parse(v.at || "") > Date.parse(newestState.at || "")) {
-              newestState = v;
-            }
-          }
-        }
-        state.activeStatesByTab = tabStates;
-        state.liveTabState = newestState;
-        state.profileRegistry = stored.uhrsProfileRegistry && typeof stored.uhrsProfileRegistry === "object"
-          ? stored.uhrsProfileRegistry
-          : {};
-        if (Array.isArray(stored.uhrsAdsPowerProfiles) && stored.uhrsAdsPowerProfiles.length) {
-          state.adsPowerProfiles = stored.uhrsAdsPowerProfiles;
-        }
-        state.questionHistory = Array.isArray(stored.uhrsQuestionHistory) ? stored.uhrsQuestionHistory : [];
-        state.eventHistory = Array.isArray(stored.uhrsEventHistory) ? stored.uhrsEventHistory : [];
-        state.localLearnedRecords = Array.isArray(stored.uhrsLearnedAnswers) ? stored.uhrsLearnedAnswers : [];
-
-        renderAll();
-        resolve();
-      });
-    });
-  }
-
+  /* Smart Hub URL Discovery */
   let resolvedHubBase = null;
 
   async function resolveHubBaseUrl() {
@@ -277,6 +242,54 @@
   async function hubFetch(apiPath, options = {}) {
     const base = await resolveHubBaseUrl();
     return fetch(`${base}${apiPath}`, options);
+  }
+
+  /* Data Loading */
+  async function loadLocalExtensionState() {
+    if (!isExtensionEnv) {
+      await loadStandaloneServerState();
+      return;
+    }
+    return new Promise(resolve => {
+      chrome.storage.local.get(null, stored => {
+        const mergedSettings = { ...DEFAULT_SETTINGS };
+        for (const key of Object.keys(DEFAULT_SETTINGS)) {
+          if (key in stored && stored[key] !== undefined) {
+            mergedSettings[key] = stored[key];
+          }
+        }
+        if (/hit-watch-server\.vercel\.app/i.test(String(mergedSettings.serverUrl || ""))) {
+          mergedSettings.serverUrl = "http://127.0.0.1:8790/api/action";
+          mergedSettings.remoteServerEnabled = false;
+        }
+        state.settings = mergedSettings;
+
+        const tabStates = {};
+        let newestState = stored.uhrsLatestActiveState || null;
+        for (const [k, v] of Object.entries(stored)) {
+          if (k.startsWith("uhrsWatcherState:") && v && typeof v === "object") {
+            tabStates[v.tabId || k] = v;
+            if (!newestState || Date.parse(v.at || "") > Date.parse(newestState.at || "")) {
+              newestState = v;
+            }
+          }
+        }
+        state.activeStatesByTab = tabStates;
+        state.liveTabState = newestState;
+        state.profileRegistry = stored.uhrsProfileRegistry && typeof stored.uhrsProfileRegistry === "object"
+          ? stored.uhrsProfileRegistry
+          : {};
+        if (Array.isArray(stored.uhrsAdsPowerProfiles) && stored.uhrsAdsPowerProfiles.length) {
+          state.adsPowerProfiles = stored.uhrsAdsPowerProfiles;
+        }
+        state.questionHistory = Array.isArray(stored.uhrsQuestionHistory) ? stored.uhrsQuestionHistory : [];
+        state.eventHistory = Array.isArray(stored.uhrsEventHistory) ? stored.uhrsEventHistory : [];
+        state.localLearnedRecords = Array.isArray(stored.uhrsLearnedAnswers) ? stored.uhrsLearnedAnswers : [];
+
+        renderAll();
+        resolve();
+      });
+    });
   }
 
   async function loadStandaloneServerState() {
@@ -364,7 +377,25 @@
           state.sheetSourceLabel = "Live Google Sheet";
           renderKPIs();
           renderSheetTable();
+          renderQuickLookup();
           return;
+        }
+      } catch {}
+    }
+
+    if (!isExtensionEnv) {
+      try {
+        const hubRes = await hubFetch(`/api/sheet?sheetId=${encodeURIComponent(sheetId)}&sheetGid=${encodeURIComponent(sheetGid)}&force=${force ? "1" : "0"}`, { cache: "no-store" });
+        if (hubRes.ok) {
+          const hubSheet = await hubRes.json();
+          if (Array.isArray(hubSheet?.records) && hubSheet.records.length) {
+            state.sheetRecords = hubSheet.records;
+            state.sheetSourceLabel = hubSheet.sourceLabel || "Live Google Sheet";
+            renderKPIs();
+            renderSheetTable();
+            renderQuickLookup();
+            return;
+          }
         }
       } catch {}
     }
@@ -401,26 +432,11 @@
           state.sheetSourceLabel = "Live Google Sheet";
           renderKPIs();
           renderSheetTable();
+          renderQuickLookup();
           return;
         }
       }
     } catch {}
-
-    if (!isExtensionEnv) {
-      try {
-        const hubRes = await hubFetch(`/api/sheet?sheetId=${encodeURIComponent(sheetId)}&sheetGid=${encodeURIComponent(sheetGid)}&force=${force ? "1" : "0"}`, { cache: "no-store" });
-        if (hubRes.ok) {
-          const hubSheet = await hubRes.json();
-          if (Array.isArray(hubSheet?.records) && hubSheet.records.length) {
-            state.sheetRecords = hubSheet.records;
-            state.sheetSourceLabel = hubSheet.sourceLabel || "Live Google Sheet";
-            renderKPIs();
-            renderSheetTable();
-            return;
-          }
-        }
-      } catch {}
-    }
 
     try {
       const bundledUrl = isExtensionEnv && chrome.runtime?.getURL ? chrome.runtime.getURL("answer-memory.json") : "./answer-memory.json";
@@ -432,6 +448,7 @@
           state.sheetSourceLabel = "Snapshot Sheet Đóng Gói";
           renderKPIs();
           renderSheetTable();
+          renderQuickLookup();
         }
       }
     } catch {}
@@ -449,7 +466,7 @@
           chrome.storage.local.set({ uhrsAdsPowerProfiles: res.profiles, uhrsAdsPowerSyncedAt: new Date().toISOString() });
           renderProfilesSection();
           renderKPIs();
-          if (showNotification) showToast(`Đã quét ${res.profiles.length} Profile từ AdsPower!`);
+          if (showNotification) showToast(`Đã đồng bộ ${res.profiles.length} Profile từ AdsPower.`);
           return;
         }
       } catch {}
@@ -461,7 +478,7 @@
           if (data?.ok && Array.isArray(data.profiles)) {
             state.adsPowerProfiles = data.profiles;
             await loadStandaloneServerState();
-            if (showNotification) showToast(`Đã quét ${data.profiles.length} Profile từ AdsPower!`);
+            if (showNotification) showToast(`Đã đồng bộ ${data.profiles.length} Profile từ AdsPower.`);
             return;
           }
         }
@@ -477,6 +494,7 @@
     renderKPIs();
     renderQuickControls();
     renderLiveHitInspector();
+    renderQuickLookup();
     renderProfilesSection();
     renderSheetTable();
     renderEarningsAndHistory();
@@ -486,193 +504,204 @@
   function renderKPIs() {
     const live = state.liveTabState;
     const s = state.settings;
-    const currentStatus = live?.status || "idle";
+    const currentStatus = live?.status || "waiting_20m";
     const meta = statusMeta(currentStatus);
-
-    const profileName = live?.adsPowerProfile || live?.profile || s.adsPowerProfile || s.profile || "Profile Hiện Tại";
-    $("kpiProfileBadge").textContent = profileName;
-    $("kpiStatusDot").className = `status-dot ${meta.dot}`;
-    $("kpiStatusText").textContent = meta.label;
-
-    const ip = live?.networkIp || live?.adsPowerProxyIp || s.networkIp || s.adsPowerProxyIp || "Đang lấy IP";
-    const country = live?.networkCountry || live?.adsPowerProxyCountry || s.networkCountry || s.adsPowerProxyCountry || "";
-    const proxy = live?.proxyName || s.proxyName || "";
-    $("kpiNetworkFoot").textContent = [
-      `IP: ${ip}`,
-      country ? country : "",
-      proxy ? `Proxy: ${proxy}` : ""
-    ].filter(Boolean).join(" · ");
-
-    const completedCount = state.questionHistory.filter(q => q.status === "completed").length;
-    const skippedCount = state.questionHistory.filter(q => q.status === "skipped").length;
-    const rejectedCount = state.questionHistory.filter(q => q.status === "rejected").length;
-    const openTabCount = Math.max(1, Object.keys(state.activeStatesByTab).length);
-
-    $("kpiHitSummary").textContent = `${completedCount} Submit · ${skippedCount} Đổi`;
-    $("kpiRejectedFoot").textContent = `Từ chối: ${rejectedCount} câu · Đang theo dõi: ${openTabCount} tab`;
-
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const monthStr = todayStr.slice(0, 7);
-    let totalAmount = 0;
-    let todayAmount = 0;
-    let monthAmount = 0;
-    for (const q of state.questionHistory) {
-      if (q.status === "completed") {
-        const amt = Number(q.reward || 0.025);
-        totalAmount += amt;
-        const qDate = String(q.at || "").slice(0, 10);
-        if (qDate === todayStr) todayAmount += amt;
-        if (qDate.slice(0, 7) === monthStr) monthAmount += amt;
-      }
-    }
-    $("kpiEarningsTotal").textContent = formatMoney(totalAmount);
-    $("kpiEarningsToday").textContent = `Hôm nay: ${formatMoney(todayAmount)} · Tháng: ${formatMoney(monthAmount)}`;
-
-    const validSheetRows = state.sheetRecords.filter(r => !/^link\s*đổi\s*câu$/i.test(String(r.targetUrl || "").trim()));
-    const skipSheetRows = validSheetRows.filter(r => isSkipAnswerText(r.answer));
-    const normalSheetRows = validSheetRows.length - skipSheetRows.length;
-
-    $("kpiSheetSourceBadge").textContent = state.sheetSourceLabel;
-    $("kpiSheetTotal").textContent = `${validSheetRows.length} câu`;
-    $("kpiSheetBreakdown").textContent = `${normalSheetRows} câu chấm · ${skipSheetRows.length} câu Đổi`;
-    $("tabCountSheet").textContent = String(validSheetRows.length + state.localLearnedRecords.length);
-    $("tabCountHistory").textContent = String(state.questionHistory.length);
-
-    const minD = Number(live?.delayMinSeconds || s.answerDelayMinSeconds || 10);
-    const maxD = Number(live?.delayMaxSeconds || s.answerDelayMaxSeconds || 15);
-    const f5Sec = Number(live?.refreshSeconds || s.refreshSeconds || 5);
-    const f5On = live?.f5Enabled !== undefined ? live.f5Enabled : (s.enabled !== false);
-    const autoOn = live?.autoAnswerEnabled !== undefined ? live.autoAnswerEnabled : (s.autoAnswerEnabled !== false);
-
-    $("kpiDelayValue").textContent = `Delay ${minD}–${maxD}s`;
-    $("kpiF5Foot").textContent = `F5: ${f5On ? `${f5Sec}s` : "TẮT"} · Tự trả lời: ${autoOn ? "BẬT" : "TẮT"}`;
-    $("kpiModeBadge").textContent = s.remoteServerEnabled ? "Local + Hub" : "100% Độc lập";
-
-    const btnSound = $("btnToggleSound");
-    if (btnSound) {
-      btnSound.textContent = state.soundEnabled ? "🔔 Âm báo HIT: BẬT" : "🔕 Âm báo HIT: TẮT";
-    }
 
     if (currentStatus === "hit_available" && live?.at && live.at !== state.lastSoundAlertAt) {
       state.lastSoundAlertAt = live.at;
       playHitBeep();
     }
+
+    const soundBtn = $("btnToggleSound");
+    if (soundBtn) {
+      soundBtn.textContent = state.soundEnabled ? "Âm báo: BẬT" : "Âm báo: TẮT";
+    }
+
+    const topDot = $("topStatusDot");
+    if (topDot) {
+      topDot.className = `status-dot ${meta.dot || "dot-wait"}`;
+    }
+
+    $("kpiStatusValue").textContent = meta.label;
+    $("kpiStatusSub").textContent = live?.message || (s.enabled !== false ? `Auto F5 đang chạy (${s.refreshSeconds || 30}s)` : "Auto F5 đang tạm dừng");
+
+    const completedList = state.questionHistory.filter(q => q.status === "completed");
+    const skippedList = state.questionHistory.filter(q => q.status === "skipped");
+    const rejectedList = state.questionHistory.filter(q => q.status === "rejected");
+
+    const todayStr = new Date().toLocaleDateString("en-CA");
+    const monthStr = todayStr.slice(0, 7);
+
+    let todayHits = 0;
+    let todayEarn = 0;
+    let monthEarn = 0;
+    let totalEarn = 0;
+
+    for (const q of completedList) {
+      const r = Number(q.reward || 0.03);
+      totalEarn += r;
+      const d = q.at ? new Date(q.at).toLocaleDateString("en-CA") : "";
+      if (d === todayStr) {
+        todayHits += 1;
+        todayEarn += r;
+      }
+      if (d.startsWith(monthStr)) {
+        monthEarn += r;
+      }
+    }
+
+    $("kpiCompletedValue").textContent = `${completedList.length} câu`;
+    $("kpiCompletedSub").textContent = `${skippedList.length} đổi câu (178599) · ${rejectedList.length} từ chối`;
+    $("kpiEarningsValue").textContent = formatMoney(todayEarn);
+    $("kpiEarningsSub").textContent = `Tháng: ${formatMoney(monthEarn)} · Tổng: ${formatMoney(totalEarn)}`;
+
+    const minD = Number(s.answerDelayMinSeconds || 17);
+    const maxD = Number(s.answerDelayMaxSeconds || 23);
+    const f5Sec = Number(s.refreshSeconds || 30);
+    $("kpiTimingValue").textContent = `${minD}–${maxD}s · F5 ${f5Sec}s`;
+    $("kpiTimingSub").textContent = `Tự trả lời: ${s.autoAnswerEnabled !== false ? "Đang BẬT" : "Đang TẮT"} · Settle ${s.autoAnswerSettleMs || 1500}ms`;
+
+    const allSheet = state.sheetRecords;
+    const skipSheetCount = allSheet.filter(r => isSkipAnswerText(r.answer)).length;
+    const normalSheetCount = allSheet.length - skipSheetCount;
+    $("kpiSheetValue").textContent = `${allSheet.length + state.localLearnedRecords.length} câu`;
+    $("kpiSheetSub").textContent = `${normalSheetCount} trả lời tự động · ${skipSheetCount} đổi câu`;
+    if ($("navSheetCount")) $("navSheetCount").textContent = String(allSheet.length + state.localLearnedRecords.length);
+
+    const ip = live?.networkIp || s.networkIp || s.adsPowerProxyIp || "139.190.145.67";
+    const country = live?.networkCountry || s.networkCountry || s.adsPowerProxyCountry || "JP";
+    const profName = live?.adsPowerProfile || live?.profile || s.adsPowerProfile || s.profile || "JP29";
+    if ($("kpiProxyValue")) $("kpiProxyValue").textContent = `${profName} · ${ip} (${country})`;
+    if ($("kpiProxySub")) $("kpiProxySub").textContent = `Profile ${profName} (${country})`;
+
+    if ($("headerLiveText")) {
+      $("headerLiveText").textContent = isExtensionEnv ? "Extension Live" : "Hub Connected";
+    }
   }
 
   function renderQuickControls() {
-    const activeEl = document.activeElement;
-    if (activeEl && ["quickDelayMin", "quickDelayMax", "quickRefreshSec"].includes(activeEl.id)) return;
     const s = state.settings;
-    const live = state.liveTabState;
-    $("quickDelayMin").value = Number(live?.delayMinSeconds || s.answerDelayMinSeconds || 10);
-    $("quickDelayMax").value = Number(live?.delayMaxSeconds || s.answerDelayMaxSeconds || 15);
-    $("quickRefreshSec").value = Number(live?.refreshSeconds || s.refreshSeconds || 5);
-    $("quickAutoAnswer").checked = live?.autoAnswerEnabled !== undefined ? live.autoAnswerEnabled : (s.autoAnswerEnabled !== false);
+    const activeEl = document.activeElement;
+    if (
+      activeEl &&
+      ["quickDelayMin", "quickDelayMax", "quickRefreshSec", "quickAutoAnswer", "topToggleF5"].includes(activeEl.id)
+    ) {
+      return;
+    }
+    if ($("quickDelayMin")) $("quickDelayMin").value = Number(s.answerDelayMinSeconds || 17);
+    if ($("quickDelayMax")) $("quickDelayMax").value = Number(s.answerDelayMaxSeconds || 23);
+    if ($("quickRefreshSec")) $("quickRefreshSec").value = Number(s.refreshSeconds || 30);
+    if ($("quickAutoAnswer")) $("quickAutoAnswer").checked = s.autoAnswerEnabled !== false;
+    if ($("topToggleF5")) $("topToggleF5").checked = s.enabled !== false;
   }
 
   function renderLiveHitInspector() {
     const live = state.liveTabState;
-    const box = $("hitInspectorBox");
-    const badge = $("inspectorBadge");
-    const msgEl = $("inspectorStatusMsg");
-    const countdownBar = $("inspectorCountdownBar");
-    const countdownLabel = $("inspectorCountdownLabel");
-    const countdownTimer = $("inspectorCountdownTimer");
-    const targetUrlEl = $("inspectorTargetUrl");
-    const sheetMatchEl = $("inspectorSheetMatch");
-    const optionsEl = $("inspectorOptionsList");
-
+    const badgeEl = $("liveHitBadge");
     if (!live) {
-      box.className = "hit-inspector";
-      badge.className = "badge badge-info";
-      badge.textContent = "Chưa mở tab UHRS";
-      msgEl.textContent = "Hãy bấm nút 'Mở Link Chuẩn (178599)' ở góc trên bên phải để bắt đầu canh HIT.";
-      countdownBar.hidden = true;
-      targetUrlEl.textContent = "Target URL: Chưa có";
-      sheetMatchEl.textContent = "Kho Google Sheet đã sẵn sàng.";
-      optionsEl.innerHTML = "";
+      badgeEl.className = "badge";
+      badgeEl.textContent = "Đang chờ kết nối";
       return;
     }
 
     const meta = statusMeta(live.status);
-    badge.className = `badge ${meta.badge}`;
-    badge.textContent = meta.label;
-    box.className = `hit-inspector ${live.status === "hit_available" ? "active-hit" : ""}`;
-    msgEl.textContent = live.message || "Đang theo dõi trang UHRS...";
+    badgeEl.className = `badge ${meta.badge}`;
+    badgeEl.textContent = meta.label;
 
-    const targetUrl = live.targetUrl || "";
-    targetUrlEl.textContent = targetUrl ? `Target URL: ${targetUrl}` : "Target URL: Không có (Đang ở màn hình chờ)";
+    const targetUrl = String(live.targetUrl || "").trim();
+    $("liveTargetUrlText").textContent = targetUrl || "Chưa có bài HIT nào đang mở trên màn hình";
 
-    const remainingSec = live.autoAnswerSubmitAt && live.autoAnswerSubmitAt > Date.now()
-      ? Math.max(1, Math.ceil((live.autoAnswerSubmitAt - Date.now()) / 1000))
-      : 0;
-
-    if (remainingSec > 0) {
-      countdownBar.hidden = false;
-      countdownLabel.textContent = `⏳ Đã chọn: "${live.autoAnswerSelected || "Đáp án"}" · Đang giữ Delay trước khi Submit/Đổi câu`;
-      countdownTimer.textContent = `Còn ${remainingSec}s`;
+    const openLink = $("btnOpenTargetUrl");
+    if (targetUrl && /^https?:\/\//i.test(targetUrl)) {
+      openLink.href = targetUrl;
+      openLink.style.display = "inline-flex";
     } else {
-      countdownBar.hidden = true;
+      openLink.style.display = "none";
     }
 
-    if (targetUrl && window.UHRSWatcherAnswerMemory) {
-      const combined = [...state.localLearnedRecords, ...state.sheetRecords];
-      const idx = window.UHRSWatcherAnswerMemory.createIndex(combined);
-      const lookup = window.UHRSWatcherAnswerMemory.lookup(idx, targetUrl);
-      if (lookup?.status === "matched" && lookup.record) {
-        const isSkip = isSkipAnswerText(lookup.record.answer);
-        sheetMatchEl.innerHTML = isSkip
-          ? `🔀 <b style="color:#fde68a">Khớp Google Sheet (Dòng #${lookup.record.rowNumber || "?"}): ĐỔI CÂU</b> — Chờ hết Delay sẽ tự chuyển sang Link đổi câu.`
-          : `✅ <b style="color:#6ee7b7">Khớp Google Sheet (Dòng #${lookup.record.rowNumber || "?"}): ${escapeHtml(lookup.record.answer)}</b>`;
-      } else {
-        sheetMatchEl.innerHTML = `⚠️ <span style="color:#fde68a">URL này chưa có sẵn trong Google Sheet.</span>`;
-      }
-    } else if (live.lastAutoAnswerResult?.answer) {
-      sheetMatchEl.textContent = `Kết quả xử lý gần nhất: ${live.lastAutoAnswerResult.answer} (${live.lastAutoAnswerResult.reason || ""})`;
-    } else {
-      sheetMatchEl.textContent = `Kho Google Sheet (${state.sheetRecords.length} dòng) đang trực chiến.`;
+    $("liveQuestionText").textContent = live.questionText || (live.status === "hit_available" ? "Đang phân tích câu hỏi..." : "Đang canh F5 tự động...");
+    const matchedAns = live.matchedAnswer || live.autoAnswerSelected || "";
+    $("liveMatchedAnswer").textContent = matchedAns ? describeSheetAnswer(matchedAns) : "Chưa khớp";
+
+    let actionLabel = "Chờ HIT xuất hiện";
+    if (live.autoAnswerRunning && live.autoAnswerSubmitAt > Date.now()) {
+      const remain = Math.max(0, Math.ceil((live.autoAnswerSubmitAt - Date.now()) / 1000));
+      actionLabel = `Đang đếm ngược Submit (${remain}s)...`;
+    } else if (live.lastAutoAnswerResult?.status === "completed") {
+      actionLabel = `Đã Submit (${live.lastAutoAnswerResult.answer || ""})`;
+    } else if (live.lastAutoAnswerResult?.resultStatus === "changed_question") {
+      actionLabel = "Đã chuyển sang nhóm 178599 (Đổi câu)";
+    }
+    $("liveActionState").textContent = actionLabel;
+    $("livePageMessage").textContent = live.message || "Đang hoạt động bình thường";
+  }
+
+  function renderQuickLookup() {
+    const box = $("quickLookupResult");
+    if (!box) return;
+    const q = String(state.quickLookupQuery || "").trim().toLowerCase();
+    if (!q) {
+      box.innerHTML = `<span style="color:var(--text-muted)">Nhập một phần URL hoặc domain để kiểm tra đáp án ngay tại đây.</span>`;
+      return;
     }
 
-    const opts = live.questionExtraction?.options || [
-      { id: "A", text: "Not Junk" },
-      { id: "B", text: "Error / Page not found / No results" },
-      { id: "C", text: "Site unreachable" },
-      { id: "D", text: "Low or no content" },
-      { id: "E", text: "Mostly ads / spam" },
-      { id: "F", text: "Auto redirect" },
-      { id: "G", text: "Can't judge" }
+    const combined = [
+      ...state.localLearnedRecords.map(r => ({
+        targetUrl: r.targetUrl || "",
+        answer: r.answer || "",
+        notes: r.notes || "Lưu tại máy",
+        isLocal: true
+      })),
+      ...state.sheetRecords.map(r => ({
+        targetUrl: r.targetUrl || r.matchUrl || "",
+        answer: r.answer || "",
+        notes: r.notes || "",
+        rowNumber: r.rowNumber
+      }))
     ];
-    const selectedNorm = String(live.autoAnswerSelected || "").trim().toLowerCase();
-    optionsEl.innerHTML = opts.map(opt => {
-      const text = opt.text || opt.label || "";
-      const isSel = selectedNorm && text.toLowerCase().includes(selectedNorm);
-      return `<span class="option-pill ${isSel ? "selected" : ""}">${escapeHtml(text)}</span>`;
+
+    const matches = combined.filter(r =>
+      r.targetUrl.toLowerCase().includes(q) ||
+      r.answer.toLowerCase().includes(q) ||
+      r.notes.toLowerCase().includes(q)
+    ).slice(0, 5);
+
+    if (!matches.length) {
+      box.innerHTML = `<span style="color:var(--rose)">Không tìm thấy URL khớp "${escapeHtml(q)}" trong 492 dòng Sheet. Bạn có thể thêm nhanh ở khung bên dưới.</span>`;
+      return;
+    }
+
+    box.innerHTML = matches.map(m => {
+      const isSkip = isSkipAnswerText(m.answer);
+      const badgeCls = isSkip ? "badge-wait" : "badge-hit";
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+          <div class="mono" style="font-size:11.5px;overflow-wrap:anywhere;flex:1">${escapeHtml(m.targetUrl)}</div>
+          <span class="badge ${badgeCls} mono">${escapeHtml(describeSheetAnswer(m.answer))}</span>
+        </div>
+      `;
     }).join("");
   }
 
   function buildUnifiedProfilesList() {
     const map = new Map();
-    const s = state.settings;
 
-    // 1. Active tabs from storage
-    for (const tab of Object.values(state.activeStatesByTab)) {
-      const name = String(tab.adsPowerProfile || tab.profile || s.adsPowerProfile || s.profile || "Current Profile").trim();
-      const key = name.toLowerCase();
+    for (const ap of state.adsPowerProfiles) {
+      const key = String(ap.profileName || ap.serialNumber || ap.profileId || "").trim();
+      if (!key) continue;
       map.set(key, {
-        name,
-        profileId: tab.adsPowerProfileId || s.adsPowerProfileId || "",
-        userName: tab.userName || s.userName || "",
-        proxyName: tab.proxyName || s.proxyName || "",
-        ip: tab.networkIp || tab.adsPowerProxyIp || s.networkIp || s.adsPowerProxyIp || "",
-        country: [tab.networkCountry || tab.adsPowerProxyCountry, tab.networkCity || tab.adsPowerProxyCity].filter(Boolean).join(", "),
-        status: tab.status || "idle",
-        message: tab.message || "",
-        targetUrl: tab.targetUrl || "",
-        f5Enabled: tab.f5Enabled !== false,
-        refreshSeconds: tab.refreshSeconds || s.refreshSeconds || 5,
-        delayLabel: `${tab.delayMinSeconds || s.answerDelayMinSeconds || 10}–${tab.delayMaxSeconds || s.answerDelayMaxSeconds || 15}s`,
-        lastSeenAt: tab.at || new Date().toISOString(),
-        isActive: true,
+        key,
+        profileName: ap.profileName || `Profile #${ap.serialNumber || ap.profileId}`,
+        serialNumber: ap.serialNumber || "",
+        profileId: ap.profileId || "",
+        proxyName: ap.proxyName || "",
+        networkIp: ap.proxyIp || "",
+        networkCountry: ap.proxyCountry || "",
+        status: "offline",
+        message: "Chưa mở tab UHRS",
+        targetUrl: "",
+        tabId: null,
+        lastSeenAt: "",
         completedCount: 0,
         skippedCount: 0,
         rejectedCount: 0,
@@ -680,181 +709,167 @@
       });
     }
 
-    // 2. Profile registry stats
-    for (const reg of Object.values(state.profileRegistry)) {
-      const name = String(reg.adsPowerProfile || reg.profile || "Default").trim();
-      const key = name.toLowerCase();
-      const existing = map.get(key);
-      if (existing) {
-        existing.completedCount += Number(reg.completedCount || 0);
-        existing.skippedCount += Number(reg.skippedCount || 0);
-        existing.rejectedCount += Number(reg.rejectedCount || 0);
-        existing.totalEarnings += Number(reg.totalEarnings || 0);
-        if (!existing.ip) existing.ip = reg.networkIp || "";
-        if (!existing.country) existing.country = reg.networkCountry || "";
-        if (!existing.proxyName) existing.proxyName = reg.proxyName || "";
-      } else {
-        const isRecent = reg.lastSeenAt && Date.now() - Date.parse(reg.lastSeenAt) < 15 * 60 * 1000;
-        map.set(key, {
-          name,
-          profileId: reg.adsPowerProfileId || "",
-          userName: reg.userName || "",
-          proxyName: reg.proxyName || "",
-          ip: reg.networkIp || "",
-          country: [reg.networkCountry, reg.networkCity].filter(Boolean).join(", "),
-          status: reg.status || "idle",
-          message: reg.message || "",
-          targetUrl: reg.targetUrl || "",
-          f5Enabled: true,
-          refreshSeconds: s.refreshSeconds || 5,
-          delayLabel: `${s.answerDelayMinSeconds || 10}–${s.answerDelayMaxSeconds || 15}s`,
-          lastSeenAt: reg.lastSeenAt || "",
-          isActive: Boolean(isRecent),
-          completedCount: Number(reg.completedCount || 0),
-          skippedCount: Number(reg.skippedCount || 0),
-          rejectedCount: Number(reg.rejectedCount || 0),
-          totalEarnings: Number(reg.totalEarnings || 0)
-        });
-      }
+    for (const [k, reg] of Object.entries(state.profileRegistry || {})) {
+      const name = String(reg.profile || k || "JP29").trim();
+      const existing = map.get(name) || {
+        key: name,
+        profileName: name,
+        serialNumber: "",
+        profileId: "",
+        proxyName: "",
+        networkIp: "",
+        networkCountry: "",
+        status: "idle",
+        message: "",
+        targetUrl: "",
+        tabId: null,
+        lastSeenAt: "",
+        completedCount: 0,
+        skippedCount: 0,
+        rejectedCount: 0,
+        totalEarnings: 0
+      };
+      existing.proxyName = reg.proxyName || existing.proxyName;
+      existing.networkIp = reg.networkIp || existing.networkIp;
+      existing.networkCountry = reg.networkCountry || existing.networkCountry;
+      existing.status = reg.status || existing.status;
+      existing.message = reg.message || existing.message;
+      existing.lastSeenAt = reg.lastSeenAt || existing.lastSeenAt;
+      existing.completedCount = Number(reg.completedCount || existing.completedCount || 0);
+      existing.skippedCount = Number(reg.skippedCount || existing.skippedCount || 0);
+      existing.rejectedCount = Number(reg.rejectedCount || existing.rejectedCount || 0);
+      existing.totalEarnings = Number(reg.totalEarnings || existing.totalEarnings || 0);
+      map.set(name, existing);
     }
 
-    // 3. AdsPower Local API profiles
-    for (const ap of state.adsPowerProfiles) {
-      const name = String(ap.profileName || ap.profileId || "").trim();
-      if (!name) continue;
-      const key = name.toLowerCase();
-      const existing = map.get(key);
-      if (existing) {
-        if (!existing.profileId) existing.profileId = ap.profileId || "";
-        if (!existing.proxyName) existing.proxyName = ap.proxyName || "";
-        if (!existing.ip) existing.ip = ap.proxyIp || "";
-        if (!existing.country) existing.country = ap.proxyCountry || "";
-      } else {
-        map.set(key, {
-          name,
-          profileId: ap.profileId || "",
-          userName: ap.userName || "",
-          proxyName: ap.proxyName || "",
-          ip: ap.proxyIp || "",
-          country: ap.proxyCountry || "",
-          status: "offline",
-          message: "Đã đồng bộ từ AdsPower Local API (Chưa mở tab UHRS)",
-          targetUrl: "",
-          f5Enabled: false,
-          refreshSeconds: s.refreshSeconds || 5,
-          delayLabel: `${s.answerDelayMinSeconds || 10}–${s.answerDelayMaxSeconds || 15}s`,
-          lastSeenAt: "",
-          isActive: false,
-          completedCount: 0,
-          skippedCount: 0,
-          rejectedCount: 0,
-          totalEarnings: 0
-        });
-      }
+    for (const tabState of Object.values(state.activeStatesByTab || {})) {
+      const name = String(tabState.adsPowerProfile || tabState.profile || state.settings.adsPowerProfile || state.settings.profile || "JP29").trim();
+      const existing = map.get(name) || {
+        key: name,
+        profileName: name,
+        serialNumber: tabState.adsPowerSerial || "40",
+        profileId: tabState.adsPowerProfileId || "",
+        proxyName: "",
+        networkIp: "",
+        networkCountry: "",
+        status: "idle",
+        message: "",
+        targetUrl: "",
+        tabId: null,
+        lastSeenAt: "",
+        completedCount: 0,
+        skippedCount: 0,
+        rejectedCount: 0,
+        totalEarnings: 0
+      };
+      existing.status = tabState.status || existing.status;
+      existing.message = tabState.message || existing.message;
+      existing.targetUrl = tabState.targetUrl || existing.targetUrl;
+      existing.tabId = tabState.tabId || existing.tabId;
+      existing.networkIp = tabState.networkIp || tabState.adsPowerProxyIp || existing.networkIp;
+      existing.networkCountry = tabState.networkCountry || tabState.adsPowerProxyCountry || existing.networkCountry;
+      existing.proxyName = tabState.proxyName || existing.proxyName;
+      existing.lastSeenAt = tabState.at || tabState.lastSeenAt || existing.lastSeenAt;
+      map.set(name, existing);
     }
 
     if (map.size === 0) {
-      const fallbackName = s.adsPowerProfile || s.profile || "Profile Hiện Tại";
-      map.set("default", {
-        name: fallbackName,
-        profileId: s.adsPowerProfileId || "",
-        userName: s.userName || "",
-        proxyName: s.proxyName || "",
-        ip: s.networkIp || s.adsPowerProxyIp || "Đang nhận diện",
-        country: s.networkCountry || s.adsPowerProxyCountry || "",
-        status: "idle",
-        message: "Bấm 'Mở Link Chuẩn (178599)' để bắt đầu phiên làm việc.",
-        targetUrl: "",
-        f5Enabled: s.enabled !== false,
-        refreshSeconds: s.refreshSeconds || 5,
-        delayLabel: `${s.answerDelayMinSeconds || 10}–${s.answerDelayMaxSeconds || 15}s`,
-        lastSeenAt: new Date().toISOString(),
-        isActive: true,
-        completedCount: 0,
-        skippedCount: 0,
-        rejectedCount: 0,
-        totalEarnings: 0
+      const fallbackName = state.settings.adsPowerProfile || state.settings.profile || "JP29";
+      map.set(fallbackName, {
+        key: fallbackName,
+        profileName: fallbackName,
+        serialNumber: "40",
+        profileId: state.settings.adsPowerProfileId || "",
+        proxyName: state.settings.proxyName || "",
+        networkIp: state.settings.networkIp || "139.190.145.67",
+        networkCountry: state.settings.networkCountry || "JP",
+        status: state.liveTabState?.status || "waiting_20m",
+        message: state.liveTabState?.message || "Đang treo F5 canh HIT trên UHRS (63766)",
+        targetUrl: state.liveTabState?.targetUrl || "",
+        tabId: state.liveTabState?.tabId || null,
+        lastSeenAt: state.liveTabState?.at || new Date().toISOString(),
+        completedCount: state.questionHistory.filter(q => q.status === "completed").length,
+        skippedCount: state.questionHistory.filter(q => q.status === "skipped").length,
+        rejectedCount: state.questionHistory.filter(q => q.status === "rejected").length,
+        totalEarnings: state.questionHistory.filter(q => q.status === "completed").reduce((sum, q) => sum + Number(q.reward || 0.03), 0)
       });
     }
 
-    // Deduplicate placeholder "Unknown" / "Default" when a real named profile exists
-    const namedEntries = Array.from(map.values()).filter(
-      item => !/^(?:unknown|default|current profile)$/i.test(String(item.name || "").trim())
-    );
-    if (namedEntries.length > 0) {
-      const primaryNamed = namedEntries[0];
-      for (const [k, item] of Array.from(map.entries())) {
-        if (/^(?:unknown|default|current profile)$/i.test(String(item.name || "").trim())) {
-          primaryNamed.completedCount += Number(item.completedCount || 0);
-          primaryNamed.skippedCount += Number(item.skippedCount || 0);
-          primaryNamed.rejectedCount += Number(item.rejectedCount || 0);
-          primaryNamed.totalEarnings += Number(item.totalEarnings || 0);
-          map.delete(k);
-        }
-      }
-    }
-
     return Array.from(map.values()).sort((a, b) => {
-      if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
-      return String(a.name).localeCompare(String(b.name), undefined, { numeric: true });
+      const score = item => {
+        if (item.status === "hit_available") return 4;
+        if (["two_factor", "answer_rejected", "error"].includes(item.status)) return 3;
+        if (item.status !== "offline") return 2;
+        return 1;
+      };
+      return score(b) - score(a) || String(a.profileName).localeCompare(String(b.profileName));
     });
   }
 
   function renderProfilesSection() {
-    const allProfiles = buildUnifiedProfilesList();
-    $("tabCountProfiles").textContent = String(allProfiles.length);
+    const tbody = $("profilesTableBody");
+    if (!tbody) return;
+    const list = buildUnifiedProfilesList();
+    if ($("profileTotalBadge")) $("profileTotalBadge").textContent = String(list.length);
 
     const filter = state.profileFilter;
     const q = state.profileSearch.trim().toLowerCase();
 
-    const filtered = allProfiles.filter(item => {
-      if (filter === "active" && !item.isActive) return false;
+    const filtered = list.filter(item => {
       if (filter === "hit" && item.status !== "hit_available") return false;
-      if (filter === "waiting" && !["waiting_20m", "waiting"].includes(item.status)) return false;
+      if (filter === "waiting" && !["waiting", "waiting_20m", "idle", "watcher_started"].includes(item.status)) return false;
       if (filter === "problem" && !["two_factor", "answer_rejected", "error"].includes(item.status)) return false;
-      if (!q) return true;
-      const hay = [item.name, item.profileId, item.proxyName, item.ip, item.country, item.message].join(" ").toLowerCase();
-      return hay.includes(q);
+      if (q) {
+        const hay = `${item.profileName} ${item.serialNumber} ${item.networkIp} ${item.networkCountry} ${item.proxyName} ${item.message}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
     });
 
-    const container = $("profilesContainer");
     if (!filtered.length) {
-      container.innerHTML = `<div class="empty-box" style="grid-column:1/-1">Không có Profile nào khớp với bộ lọc hiện tại.</div>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-box">Không có Profile nào khớp với bộ lọc hiện tại.</td></tr>`;
       return;
     }
 
-    container.innerHTML = filtered.slice(0, 120).map(p => {
-      const meta = p.status === "offline"
-        ? { label: "Chưa mở UHRS", badge: "", card: "" }
-        : statusMeta(p.status);
+    tbody.innerHTML = filtered.map(item => {
+      const meta = statusMeta(item.status);
+      const ipDisplay = item.networkIp
+        ? `${item.networkCountry ? item.networkCountry + " · " : ""}${item.networkIp}`
+        : (item.proxyName || "Chưa rõ IP");
+
       return `
-        <article class="profile-card ${meta.card}">
-          <div class="profile-card-head">
-            <div class="profile-title">
-              <span>${escapeHtml(p.name)}</span>
-              ${p.profileId ? `<span class="mono" style="font-size:11px;color:var(--muted);font-weight:500">#${escapeHtml(p.profileId)}</span>` : ""}
+        <tr>
+          <td>
+            <div style="font-weight:600;color:var(--text)">${escapeHtml(item.profileName)}</div>
+            <div class="mono" style="font-size:11px;color:var(--text-muted)">${item.serialNumber ? `#${escapeHtml(item.serialNumber)}` : "AdsPower"}</div>
+          </td>
+          <td>
+            <div class="mono" style="font-size:12px">${escapeHtml(ipDisplay)}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(item.proxyName || "Proxy trực tiếp")}</div>
+          </td>
+          <td>
+            <span class="badge ${meta.badge}">
+              <span class="status-dot ${meta.dot}"></span>
+              ${escapeHtml(meta.label)}
+            </span>
+          </td>
+          <td style="max-width:280px">
+            <div style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.targetUrl || item.message || "Đang canh HIT...")}</div>
+            <div class="mono" style="font-size:11px;color:var(--text-muted)">${escapeHtml(formatTime(item.lastSeenAt))}</div>
+          </td>
+          <td class="mono" style="font-size:12px">
+            <div><span style="color:var(--emerald);font-weight:600">${item.completedCount}</span> xong · <span style="color:var(--amber)">${item.skippedCount}</span> đổi</div>
+            <div class="amount-positive" style="font-size:11.5px">${formatMoney(item.totalEarnings)}</div>
+          </td>
+          <td style="text-align:right">
+            <div style="display:inline-flex;gap:6px">
+              ${item.tabId ? `<button class="btn btn-sm" data-tab-action="focus" data-tab-id="${escapeHtml(item.tabId)}">Chuyển tới</button>` : ""}
+              <button class="btn btn-sm" data-tab-action="start-f5" data-tab-id="${escapeHtml(item.tabId || "")}">Bật F5</button>
+              <button class="btn btn-sm" data-tab-action="stop-f5" data-tab-id="${escapeHtml(item.tabId || "")}">Dừng</button>
+              <button class="btn btn-sm" data-tab-action="reload" data-tab-id="${escapeHtml(item.tabId || "")}">Reload</button>
             </div>
-            <span class="badge ${meta.badge}">${escapeHtml(meta.label)}</span>
-          </div>
-
-          <div class="profile-meta">
-            <div><b>IP:</b> ${escapeHtml(p.ip || "Chưa rõ")}</div>
-            <div><b>Vùng:</b> ${escapeHtml(p.country || "Chưa rõ")}</div>
-            <div><b>Proxy:</b> ${escapeHtml(p.proxyName || "Mặc định")}</div>
-            <div><b>Cấu hình:</b> F5 ${p.f5Enabled ? `${p.refreshSeconds}s` : "Tắt"} · ${escapeHtml(p.delayLabel)}</div>
-          </div>
-
-          <div style="font-size:12.5px;color:var(--muted);overflow-wrap:anywhere">
-            ${escapeHtml(p.message || "Đang sẵn sàng")}
-          </div>
-
-          ${p.targetUrl ? `<div class="mono" style="font-size:11.5px;color:var(--sky);overflow-wrap:anywhere">Target: ${escapeHtml(p.targetUrl)}</div>` : ""}
-
-          <div class="profile-stats-row">
-            <span>Submit: <b>${p.completedCount}</b> · Đổi: <b>${p.skippedCount}</b> · Lỗi: <b>${p.rejectedCount}</b></span>
-            <span class="amount-positive">${formatMoney(p.totalEarnings)}</span>
-          </div>
-        </article>
+          </td>
+        </tr>
       `;
     }).join("");
   }
@@ -865,57 +880,66 @@
 
     const combined = [
       ...state.localLearnedRecords.map((r, i) => ({
-        rowNumber: `Local-${i + 1}`,
-        targetUrl: r.targetUrl || "",
+        rowNumber: `M${i + 1}`,
+        targetUrl: r.targetUrl || r.normalizedTargetUrl || "",
         answer: r.answer || "",
-        notes: r.reason || r.notes || "Ghi nhớ bổ sung trên máy",
-        source: "local-override"
+        notes: r.notes || "Lưu tại máy",
+        isLocal: true,
+        isSkip: isSkipAnswerText(r.answer)
       })),
-      ...state.sheetRecords
+      ...state.sheetRecords.map((r, i) => ({
+        rowNumber: r.rowNumber || i + 1,
+        targetUrl: r.targetUrl || r.matchUrl || "",
+        answer: r.answer || "",
+        notes: r.notes || "",
+        isLocal: false,
+        isSkip: isSkipAnswerText(r.answer)
+      }))
     ];
 
-    const q = state.sheetSearch.trim().toLowerCase();
-    const filter = state.sheetFilter;
+    const totalCount = combined.length;
+    const skipCount = combined.filter(r => r.isSkip).length;
+    const normalCount = totalCount - skipCount;
 
-    const filtered = combined.filter(row => {
-      const answer = String(row.answer || "").trim();
-      const desc = describeSheetAnswer(answer).toLowerCase();
-      if (filter === "skip" && !isSkipAnswerText(answer)) return false;
-      if (filter === "not_junk" && !desc.includes("not junk")) return false;
-      if (filter === "error" && !/error|not found|unreachable/i.test(desc)) return false;
-      if (filter === "low_content" && !/low|content|ads|spam/i.test(desc)) return false;
-      if (filter === "local" && row.source !== "local-override") return false;
-      if (!q) return true;
-      const hay = `${row.targetUrl || ""} ${row.matchUrl || ""} ${answer} ${desc} ${row.notes || ""}`.toLowerCase();
-      return hay.includes(q);
+    if ($("sheetStatTotal")) $("sheetStatTotal").textContent = String(totalCount);
+    if ($("sheetStatNormal")) $("sheetStatNormal").textContent = String(normalCount);
+    if ($("sheetStatSkip")) $("sheetStatSkip").textContent = String(skipCount);
+    if ($("sheetStatLocal")) $("sheetStatLocal").textContent = String(state.localLearnedRecords.length);
+
+    const filter = state.sheetFilter;
+    const q = state.sheetSearch.trim().toLowerCase();
+
+    const filtered = combined.filter(r => {
+      if (filter === "normal" && r.isSkip) return false;
+      if (filter === "skip" && !r.isSkip) return false;
+      if (filter === "local" && !r.isLocal) return false;
+      if (q) {
+        const hay = `${r.targetUrl} ${r.answer} ${r.notes}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
     });
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-box">Không tìm thấy dòng đáp án nào khớp từ khóa.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-box">Không tìm thấy dòng đáp án nào khớp từ khóa.</td></tr>`;
       return;
     }
 
-    tbody.innerHTML = filtered.slice(0, 600).map(row => {
-      const isSkip = isSkipAnswerText(row.answer);
-      const isLinkRow = /^link\s*đổi\s*câu$/i.test(String(row.targetUrl || "").trim());
-      const badgeClass = isLinkRow
-        ? "badge-info"
-        : isSkip
-          ? "badge-wait"
-          : "badge-hit";
-      const badgeLabel = isLinkRow
-        ? `🔗 Link Đổi Câu: ${row.answer}`
-        : isSkip
-          ? `🔀 ${describeSheetAnswer(row.answer)}`
-          : `✅ ${describeSheetAnswer(row.answer)}`;
+    const displayRows = filtered.slice(0, 300);
+    tbody.innerHTML = displayRows.map(r => {
+      const actionBadge = r.isSkip
+        ? `<span class="badge badge-wait">Đổi câu (178599)</span>`
+        : `<span class="badge badge-hit">Chọn & Submit</span>`;
+      const formattedAnswer = describeSheetAnswer(r.answer);
       return `
         <tr>
-          <td class="mono" style="color:var(--muted)">#${escapeHtml(row.rowNumber || "-")}</td>
-          <td class="mono" style="overflow-wrap:anywhere;max-width:460px">${escapeHtml(row.targetUrl || row.matchUrl || "")}</td>
-          <td><span class="badge ${badgeClass}">${escapeHtml(badgeLabel)}</span></td>
-          <td style="color:var(--muted);font-size:12px">${escapeHtml(row.notes || row.source || "Google Sheet")}</td>
-          <td>
-            <button class="btn btn-sm" type="button" data-copy-url="${escapeHtml(row.targetUrl || row.answer || "")}">Copy</button>
+          <td class="mono" style="color:var(--text-muted)">${escapeHtml(r.rowNumber)}</td>
+          <td class="mono" style="overflow-wrap:anywhere">${escapeHtml(r.targetUrl)}</td>
+          <td><span class="badge ${r.isSkip ? "badge-wait" : "badge-info"} mono">${escapeHtml(formattedAnswer)}</span></td>
+          <td>${actionBadge}</td>
+          <td style="color:var(--text-secondary)">${escapeHtml(r.notes || "-")}</td>
+          <td style="text-align:right">
+            <button class="btn btn-sm" data-copy-url="${escapeHtml(r.targetUrl)}">Copy</button>
           </td>
         </tr>
       `;
@@ -923,69 +947,86 @@
   }
 
   function renderEarningsAndHistory() {
-    const earningsBody = $("earningsTableBody");
+    const profileBody = $("earningsByProfileBody");
     const historyBody = $("historyTableBody");
-    if (!earningsBody || !historyBody) return;
+    if (!profileBody || !historyBody) return;
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = new Date().toLocaleDateString("en-CA");
     const monthStr = todayStr.slice(0, 7);
 
-    // Group by profile
+    let todayHits = 0;
+    let todayAmount = 0;
+    let monthHits = 0;
+    let monthAmount = 0;
+    let totalHits = 0;
+    let totalAmount = 0;
+    let skipCount = 0;
+    let rejectCount = 0;
+
     const byProfile = new Map();
-    for (const p of buildUnifiedProfilesList()) {
-      if (!p.isActive && p.completedCount === 0 && p.skippedCount === 0) continue;
-      byProfile.set(p.name, {
-        profile: p.name,
-        proxyInfo: [p.proxyName, p.ip, p.country].filter(Boolean).join(" · ") || "Mặc định",
+
+    for (const q of state.questionHistory) {
+      const prof = String(q.profile || state.settings.adsPowerProfile || state.settings.profile || "JP29").trim();
+      const row = byProfile.get(prof) || {
+        profile: prof,
+        proxyInfo: q.networkIp ? `${q.networkCountry ? q.networkCountry + " · " : ""}${q.networkIp}` : (q.proxyName || "139.190.145.67"),
         completed: 0,
         skipped: 0,
         rejected: 0,
         todayAmount: 0,
         monthAmount: 0,
         totalAmount: 0
-      });
-    }
+      };
 
-    for (const q of state.questionHistory) {
-      const key = q.profile || "Default";
-      if (!byProfile.has(key)) {
-        byProfile.set(key, {
-          profile: key,
-          proxyInfo: [q.proxyName, q.networkIp, q.networkCountry].filter(Boolean).join(" · ") || "Mặc định",
-          completed: 0,
-          skipped: 0,
-          rejected: 0,
-          todayAmount: 0,
-          monthAmount: 0,
-          totalAmount: 0
-        });
-      }
-      const entry = byProfile.get(key);
+      const d = q.at ? new Date(q.at).toLocaleDateString("en-CA") : "";
+      const reward = Number(q.reward || 0.03);
+
       if (q.status === "completed") {
-        const amt = Number(q.reward || 0.025);
-        entry.completed += 1;
-        entry.totalAmount += amt;
-        const d = String(q.at || "").slice(0, 10);
-        if (d === todayStr) entry.todayAmount += amt;
-        if (d.slice(0, 7) === monthStr) entry.monthAmount += amt;
+        totalHits += 1;
+        totalAmount += reward;
+        row.completed += 1;
+        row.totalAmount += reward;
+        if (d === todayStr) {
+          todayHits += 1;
+          todayAmount += reward;
+          row.todayAmount += reward;
+        }
+        if (d.startsWith(monthStr)) {
+          monthHits += 1;
+          monthAmount += reward;
+          row.monthAmount += reward;
+        }
       } else if (q.status === "skipped") {
-        entry.skipped += 1;
+        skipCount += 1;
+        row.skipped += 1;
       } else if (q.status === "rejected") {
-        entry.rejected += 1;
+        rejectCount += 1;
+        row.rejected += 1;
       }
+
+      byProfile.set(prof, row);
     }
 
-    const rows = Array.from(byProfile.values());
-    if (!rows.length) {
-      earningsBody.innerHTML = `<tr><td colspan="8" class="empty-box">Chưa có dữ liệu làm bài. Khi tool tự động Submit hoặc Đổi câu, thống kê sẽ hiển thị tại đây.</td></tr>`;
+    $("earnTodayValue").textContent = formatMoney(todayAmount);
+    $("earnTodayHits").textContent = `${todayHits} câu hoàn thành hôm nay`;
+    $("earnMonthValue").textContent = formatMoney(monthAmount);
+    $("earnMonthHits").textContent = `${monthHits} câu hoàn thành trong tháng`;
+    $("earnTotalValue").textContent = formatMoney(totalAmount);
+    $("earnTotalHits").textContent = `${totalHits} câu hoàn thành tích lũy`;
+    $("earnSkipCount").textContent = `${skipCount} lần`;
+    $("earnRejectCount").textContent = `${rejectCount} lần bị từ chối`;
+
+    const profRows = Array.from(byProfile.values());
+    if (!profRows.length) {
+      profileBody.innerHTML = `<tr><td colspan="8" class="empty-box">Chưa có lịch sử làm câu hỏi nào được ghi nhận.</td></tr>`;
     } else {
-      earningsBody.innerHTML = rows.map(r => `
+      profileBody.innerHTML = profRows.map(r => `
         <tr>
-          <td><b>${escapeHtml(r.profile)}</b></td>
-          <td style="color:var(--muted)">${escapeHtml(r.proxyInfo)}</td>
-          <td><b>${r.completed}</b> câu</td>
-          <td><b>${r.skipped}</b> câu</td>
-          <td style="color:${r.rejected > 0 ? "#fda4af" : "var(--muted)"}">${r.rejected} câu</td>
+          <td style="font-weight:600">${escapeHtml(r.profile)}</td>
+          <td class="mono" style="color:var(--text-secondary)">${escapeHtml(r.proxyInfo)}</td>
+          <td class="mono"><b>${r.completed}</b></td>
+          <td class="mono">${r.skipped}</td>
+          <td class="mono" style="color:${r.rejected > 0 ? "var(--rose)" : "var(--text-muted)"}">${r.rejected}</td>
           <td class="amount-positive">${formatMoney(r.todayAmount)}</td>
           <td class="amount-positive">${formatMoney(r.monthAmount)}</td>
           <td class="amount-positive">${formatMoney(r.totalAmount)}</td>
@@ -993,7 +1034,6 @@
       `).join("");
     }
 
-    // History table
     const hf = state.historyFilter;
     if (hf === "events") {
       if (!state.eventHistory.length) {
@@ -1004,12 +1044,12 @@
         const meta = statusMeta(evt.status);
         return `
           <tr>
-            <td style="color:var(--muted);font-size:12px">${escapeHtml(formatTime(evt.at))}</td>
-            <td><b>${escapeHtml(evt.profile || "Default")}</b></td>
+            <td class="mono" style="color:var(--text-muted);font-size:11.5px">${escapeHtml(formatTime(evt.at))}</td>
+            <td style="font-weight:600">${escapeHtml(evt.profile || "JP29")}</td>
             <td><span class="badge ${meta.badge}">${escapeHtml(meta.label)}</span></td>
             <td class="mono" style="overflow-wrap:anywhere">${escapeHtml(evt.targetUrl || evt.url || "")}</td>
-            <td style="color:var(--muted)">${escapeHtml(evt.message || "")}</td>
-            <td style="color:var(--muted)">${evt.confidence ? Math.round(Number(evt.confidence) * 100) + "%" : "-"}</td>
+            <td style="color:var(--text-secondary)">${escapeHtml(evt.message || "")}</td>
+            <td class="mono" style="color:var(--text-muted)">${evt.confidence ? Math.round(Number(evt.confidence) * 100) + "%" : "-"}</td>
           </tr>
         `;
       }).join("");
@@ -1030,19 +1070,22 @@
 
     historyBody.innerHTML = qFiltered.slice(0, 200).map(q => {
       const badge = q.status === "completed"
-        ? `<span class="badge badge-hit">✅ Đã Submit</span>`
+        ? `<span class="badge badge-hit">Đã Submit</span>`
         : q.status === "skipped"
-          ? `<span class="badge badge-wait">🔀 Đã Đổi câu</span>`
-          : `<span class="badge badge-danger">❌ Bị từ chối</span>`;
+          ? `<span class="badge badge-wait">Đã Đổi câu</span>`
+          : `<span class="badge badge-danger">Bị từ chối</span>`;
       const delaySec = q.elapsedMs ? `${(Number(q.elapsedMs) / 1000).toFixed(1)}s` : "-";
-      const rewardStr = q.status === "completed" ? ` · +${formatMoney(q.reward || 0.025)}` : "";
+      const rewardStr = q.status === "completed" ? ` · +${formatMoney(q.reward || 0.03)}` : "";
       return `
         <tr>
-          <td style="color:var(--muted);font-size:12px">${escapeHtml(formatTime(q.at))}</td>
-          <td><b>${escapeHtml(q.profile || "Default")}</b></td>
+          <td class="mono" style="color:var(--text-muted);font-size:11.5px">${escapeHtml(formatTime(q.at))}</td>
+          <td style="font-weight:600">${escapeHtml(q.profile || "JP29")}</td>
           <td>${badge}</td>
           <td class="mono" style="overflow-wrap:anywhere">${escapeHtml(q.targetUrl || q.question || "")}</td>
-          <td><b>${escapeHtml(q.answer || "")}</b><div style="font-size:11.5px;color:var(--muted)">${escapeHtml(q.reason || q.source || "")}</div></td>
+          <td>
+            <div class="mono" style="font-weight:600">${escapeHtml(describeSheetAnswer(q.answer || ""))}</div>
+            <div style="font-size:11.5px;color:var(--text-muted)">${escapeHtml(q.reason || q.source || "")}</div>
+          </td>
           <td class="mono">${escapeHtml(delaySec)}${escapeHtml(rewardStr)}</td>
         </tr>
       `;
@@ -1055,9 +1098,9 @@
     const s = state.settings;
     $("setAppId").value = s.appId || "63766";
     $("setSkipGroup").value = s.skipTaskGroupId || "178599";
-    $("setDelayMin").value = Number(s.answerDelayMinSeconds || 10);
-    $("setDelayMax").value = Number(s.answerDelayMaxSeconds || 15);
-    $("setRefreshSec").value = Number(s.refreshSeconds || 5);
+    $("setDelayMin").value = Number(s.answerDelayMinSeconds || 17);
+    $("setDelayMax").value = Number(s.answerDelayMaxSeconds || 23);
+    $("setRefreshSec").value = Number(s.refreshSeconds || 30);
     $("setSettleMs").value = Number(s.autoAnswerSettleMs || 1500);
     $("setEnabledF5").checked = s.enabled !== false;
     $("setAutoAnswer").checked = s.autoAnswerEnabled !== false;
@@ -1106,7 +1149,7 @@
     }
   }
 
-  function saveSettingsObject(partial, toastMessage = "Đã lưu và áp dụng thiết lập!") {
+  function saveSettingsObject(partial, toastMessage = "Đã lưu và áp dụng thiết lập.") {
     const next = { ...state.settings, ...partial };
     state.settings = next;
     if (isExtensionEnv && globalThis.chrome?.storage?.local) {
@@ -1145,18 +1188,23 @@
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
   });
 
+  $("btnToggleTheme")?.addEventListener("click", () => {
+    applyTheme(state.theme === "dark" ? "light" : "dark");
+    showToast(`Đã chuyển sang giao diện ${state.theme === "dark" ? "Tối (Carbon)" : "Sáng (Daylight)"}.`);
+  });
+
   $("btnToggleSound")?.addEventListener("click", () => {
     state.soundEnabled = !state.soundEnabled;
     localStorage.setItem("uhrsDashSound", String(state.soundEnabled));
     renderKPIs();
-    showToast(state.soundEnabled ? "Đã bật âm báo khi có HIT!" : "Đã tắt âm báo HIT.");
+    showToast(state.soundEnabled ? "Đã bật âm báo khi có HIT." : "Đã tắt âm báo HIT.");
   });
 
   $("btnRefreshAll")?.addEventListener("click", async () => {
     await loadLocalExtensionState();
     await loadGoogleSheetRecords(true);
     await scanAdsPowerProfiles(false);
-    showToast("Đã làm mới toàn bộ dữ liệu trực tiếp!");
+    showToast("Đã làm mới dữ liệu.");
   });
 
   $("btnHeaderOpenApp")?.addEventListener("click", () => openOrNavigateUhrsUrl(getAppUrls().primaryUrl));
@@ -1165,8 +1213,19 @@
   $("btnOpenPrimaryApp")?.addEventListener("click", () => openOrNavigateUhrsUrl(getAppUrls().primaryUrl));
   $("btnOpenMarketplace")?.addEventListener("click", () => openOrNavigateUhrsUrl(getAppUrls().marketplaceUrl));
 
+  $("topToggleF5")?.addEventListener("change", event => {
+    const enabled = Boolean(event.target.checked);
+    saveSettingsObject({ enabled }, enabled ? "Đã bật Auto F5 canh HIT." : "Đã tạm dừng Auto F5.");
+    sendTabCommand(enabled ? "START_F5" : "STOP_F5");
+  });
+
+  $("quickAutoAnswer")?.addEventListener("change", event => {
+    const autoAnswerEnabled = Boolean(event.target.checked);
+    saveSettingsObject({ autoAnswerEnabled }, `Tự trả lời theo Sheet: ${autoAnswerEnabled ? "BẬT" : "TẮT"}`);
+  });
+
   $("btnCmdStartF5")?.addEventListener("click", () => {
-    saveSettingsObject({ enabled: true }, "Đã bật Auto F5 canh HIT!");
+    saveSettingsObject({ enabled: true }, "Đã bật Auto F5 canh HIT.");
     sendTabCommand("START_F5");
   });
 
@@ -1177,18 +1236,18 @@
 
   $("btnCmdScanNow")?.addEventListener("click", () => {
     sendTabCommand("SCAN_NOW");
-    showToast("Đã gửi lệnh quét trang UHRS ngay lập tức!");
+    showToast("Đã gửi lệnh quét trang UHRS.");
   });
 
   $("btnCmdShowPanel")?.addEventListener("click", () => {
     sendTabCommand("SHOW_PANEL");
-    showToast("Đã bật hiển thị bảng điều khiển nổi trên tab UHRS!");
+    showToast("Đã bật bảng điều khiển nổi trên tab UHRS.");
   });
 
   $("btnSaveQuickConfig")?.addEventListener("click", () => {
-    const minSec = Math.max(1, Math.min(120, Math.round(Number($("quickDelayMin").value) || 10)));
-    const maxSec = Math.max(minSec, Math.min(120, Math.round(Number($("quickDelayMax").value) || 15)));
-    const refreshSeconds = Math.max(5, Math.min(120, Math.round(Number($("quickRefreshSec").value) || 5)));
+    const minSec = Math.max(1, Math.min(120, Math.round(Number($("quickDelayMin").value) || 17)));
+    const maxSec = Math.max(minSec, Math.min(120, Math.round(Number($("quickDelayMax").value) || 23)));
+    const refreshSeconds = Math.max(5, Math.min(120, Math.round(Number($("quickRefreshSec").value) || 30)));
     const autoAnswerEnabled = $("quickAutoAnswer").checked;
     saveSettingsObject(
       {
@@ -1198,8 +1257,13 @@
         refreshSeconds,
         autoAnswerEnabled
       },
-      `Đã áp dụng: Delay ${minSec}–${maxSec}s · F5 ${refreshSeconds}s · Auto ${autoAnswerEnabled ? "BẬT" : "TẮT"}`
+      `Đã áp dụng: Delay ${minSec}–${maxSec}s · F5 ${refreshSeconds}s`
     );
+  });
+
+  $("quickLookupInput")?.addEventListener("input", event => {
+    state.quickLookupQuery = event.target.value || "";
+    renderQuickLookup();
   });
 
   $("btnCopyTargetUrl")?.addEventListener("click", () => {
@@ -1209,7 +1273,7 @@
       return;
     }
     navigator.clipboard?.writeText(url);
-    showToast("Đã copy Target URL!");
+    showToast("Đã copy Target URL.");
   });
 
   $("btnScanAdsPower")?.addEventListener("click", () => scanAdsPowerProfiles(true));
@@ -1229,6 +1293,31 @@
     renderProfilesSection();
   });
 
+  $("profilesTableBody")?.addEventListener("click", event => {
+    const btn = event.target.closest("button[data-tab-action]");
+    if (!btn) return;
+    const action = btn.dataset.tabAction;
+    const tabId = Number(btn.dataset.tabId) || null;
+    if (action === "focus" && tabId && isExtensionEnv && globalThis.chrome?.tabs) {
+      chrome.tabs.update(tabId, { active: true });
+      return;
+    }
+    if (action === "start-f5") {
+      sendTabCommand("START_F5", { tabId });
+      showToast("Đã bật F5 cho tab.");
+    } else if (action === "stop-f5") {
+      sendTabCommand("STOP_F5", { tabId });
+      showToast("Đã dừng F5 cho tab.");
+    } else if (action === "reload") {
+      if (tabId && isExtensionEnv && globalThis.chrome?.tabs) {
+        chrome.tabs.reload(tabId);
+      } else {
+        sendTabCommand("SCAN_NOW", { tabId });
+      }
+      showToast("Đã làm mới tab UHRS.");
+    }
+  });
+
   $("sheetFilterPills")?.addEventListener("click", event => {
     const btn = event.target.closest("button[data-sheet-filter]");
     if (!btn) return;
@@ -1245,9 +1334,9 @@
   });
 
   $("btnForceSyncSheet")?.addEventListener("click", async () => {
-    showToast("Đang đồng bộ trực tiếp từ Google Sheet...");
+    showToast("Đang đồng bộ từ Google Sheet...");
     await loadGoogleSheetRecords(true);
-    showToast(`Đã đồng bộ ${state.sheetRecords.length} dòng từ Google Sheet!`);
+    showToast(`Đã đồng bộ ${state.sheetRecords.length} dòng từ Google Sheet.`);
   });
 
   $("sheetTableBody")?.addEventListener("click", event => {
@@ -1255,7 +1344,7 @@
     if (!btn) return;
     const text = btn.dataset.copyUrl || "";
     navigator.clipboard?.writeText(text);
-    showToast("Đã copy vào bộ nhớ tạm!");
+    showToast("Đã copy URL.");
   });
 
   $("customMemoryForm")?.addEventListener("submit", event => {
@@ -1270,7 +1359,7 @@
       targetUrl,
       normalizedTargetUrl: window.UHRSWatcherAnswerMemory?.normalizeUrl?.(targetUrl) || targetUrl,
       answer,
-      notes: notes || "Thêm trực tiếp từ Dashboard v3.0",
+      notes: notes || "Thêm từ Console",
       learnedAt: new Date().toISOString()
     };
     const nextList = [entry, ...state.localLearnedRecords.filter(r => r.targetUrl !== targetUrl)].slice(0, 500);
@@ -1282,7 +1371,8 @@
     $("customMemNote").value = "";
     renderKPIs();
     renderSheetTable();
-    showToast(`Đã lưu đáp án "${answer}" cho URL vào bộ nhớ máy!`);
+    renderQuickLookup();
+    showToast(`Đã lưu đáp án "${describeSheetAnswer(answer)}" cho URL.`);
   });
 
   $("historyFilterPills")?.addEventListener("click", event => {
@@ -1308,7 +1398,7 @@
         q.targetUrl || "",
         q.answer || "",
         q.elapsedMs ? (Number(q.elapsedMs) / 1000).toFixed(1) : "0",
-        q.status === "completed" ? Number(q.reward || 0.025).toFixed(4) : "0",
+        q.status === "completed" ? Number(q.reward || 0.03).toFixed(4) : "0",
         q.reason || ""
       ]);
     }
@@ -1322,28 +1412,28 @@
     a.download = `uhrs-report-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast("Đã xuất báo cáo CSV thành công!");
+    showToast("Đã xuất file CSV.");
   });
 
   $("btnClearHistory")?.addEventListener("click", () => {
-    if (!confirm("Bạn có chắc chắn muốn xóa lịch sử câu hỏi và sự kiện trên máy này?")) return;
+    if (!confirm("Xóa toàn bộ lịch sử câu hỏi và sự kiện trên máy này?")) return;
     state.questionHistory = [];
     state.eventHistory = [];
     if (isExtensionEnv && globalThis.chrome?.runtime?.sendMessage) {
       chrome.runtime.sendMessage({ type: "clear_watcher_history" }, () => {
         renderKPIs();
         renderEarningsAndHistory();
-        showToast("Đã xóa lịch sử làm bài!");
+        showToast("Đã xóa lịch sử.");
       });
     }
   });
 
   $("fullSettingsForm")?.addEventListener("submit", event => {
     event.preventDefault();
-    const minSec = Math.max(1, Math.min(120, Math.round(Number($("setDelayMin").value) || 10)));
-    const maxSec = Math.max(minSec, Math.min(120, Math.round(Number($("setDelayMax").value) || 15)));
-    const refreshSeconds = Math.max(5, Math.min(120, Math.round(Number($("setRefreshSec").value) || 5)));
-    const settleMs = Math.max(800, Math.min(5000, Math.round(Number($("setSettleMs").value) || 1500)));
+    const minSec = Math.max(1, Math.min(120, Math.round(Number($("setDelayMin").value) || 17)));
+    const maxSec = Math.max(minSec, Math.min(120, Math.round(Number($("setDelayMax").value) || 23)));
+    const refreshSeconds = Math.max(5, Math.min(120, Math.round(Number($("setRefreshSec").value) || 30)));
+    const settleMs = Math.max(500, Math.min(5000, Math.round(Number($("setSettleMs").value) || 1500)));
     const remoteEnabled = $("setRemoteServerEnabled").checked;
     let rawServerBase = String($("setServerBaseUrl").value || "http://127.0.0.1:8790").trim().replace(/\/+$/, "");
     if (!rawServerBase || /hit-watch-server\.vercel\.app/i.test(rawServerBase)) {
@@ -1377,7 +1467,7 @@
       dashboardUrl: isExtensionEnv && chrome.runtime?.getURL ? chrome.runtime.getURL("dashboard.html") : "dashboard.html"
     };
 
-    saveSettingsObject(updated, "Đã lưu toàn bộ cấu hình hệ thống v3.0!");
+    saveSettingsObject(updated, "Đã lưu toàn bộ cấu hình hệ thống.");
   });
 
   $("btnResetDefaults")?.addEventListener("click", () => {
@@ -1386,7 +1476,7 @@
         ...DEFAULT_SETTINGS,
         dashboardUrl: isExtensionEnv && chrome.runtime?.getURL ? chrome.runtime.getURL("dashboard.html") : "dashboard.html"
       },
-      "Đã khôi phục cấu hình mặc định chuẩn!"
+      "Đã khôi phục cấu hình mặc định."
     );
   });
 
