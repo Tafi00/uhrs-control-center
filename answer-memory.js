@@ -146,9 +146,13 @@
     }).slice(0, 3000);
   }
 
+  function exactKey(value) {
+    return text(value).toLowerCase();
+  }
+
   // The bundled Sheet snapshot is small enough to ship with the extension,
   // but a linear scan on every polling tick still does needless work. Index
-  // normalized target URLs once when the snapshot loads.
+  // exact case-insensitive URLs (Phú Ngao Tool standard) and normalized fallback URLs.
   function createIndex(records) {
     const index = new Map();
     const addKey = (key, row) => {
@@ -158,12 +162,22 @@
       index.set(key, rows);
     };
     for (const row of (Array.isArray(records) ? records : [])) {
+      const exact0 = exactKey(row?.targetUrl || row?.url);
+      if (exact0) addKey(`exact:${exact0}`, row);
+      const exact1 = exactKey(row?.matchUrl);
+      if (exact1 && exact1 !== exact0) addKey(`exact:${exact1}`, row);
+
       const target = normalizeUrl(row?.normalizedTargetUrl || row?.targetUrl || row?.url);
-      addKey(target, row);
+      if (target) {
+        addKey(`norm:${target}`, row);
+        addKey(target, row);
+      }
       const matchTarget = normalizeUrl(row?.matchUrl);
-      if (matchTarget && matchTarget !== target) addKey(matchTarget, row);
-      const rawKey = text(row?.targetUrl || row?.url).toLowerCase();
-      if (rawKey && rawKey !== target) addKey(rawKey, row);
+      if (matchTarget && matchTarget !== target) {
+        addKey(`norm:${matchTarget}`, row);
+        addKey(matchTarget, row);
+      }
+      if (exact0 && exact0 !== target) addKey(exact0, row);
     }
     return index;
   }
@@ -176,56 +190,82 @@
       ...(Array.isArray(scan?.targetUrlCandidates) ? scan.targetUrlCandidates : []),
       extraction.targetUrl
     ].map(text).filter(Boolean);
-    const targetCandidates = [
-      ...rawCandidates.map(normalizeUrl),
-      ...rawCandidates.map(v => v.toLowerCase())
-    ].filter(Boolean);
     const rows = Array.isArray(records) ? records : [];
     const targetIndex = index instanceof Map ? index : createIndex(rows);
-    // Junk Type? is shared by every HIT, so matching by question text can pick
-    // an unrelated row. Only an exact normalized target URL is a Sheet hit.
+
+    const filterAuthoritativeRows = list => {
+      const sheetRows = list.filter(row =>
+        /^google-sheet-(?:live|bundled)$/i.test(String(row?.source || "")) ||
+        String(row?.sheetName || "") === "Trang tính1" ||
+        /^local-/i.test(String(row?.id || ""))
+      );
+      return sheetRows.length ? sheetRows : list.filter(row => !/^(?:ai-memory|url-recheck)/i.test(String(row?.source || "")));
+    };
+
+    // Pass 1: Exact case-insensitive match against row[0] (targetUrl) or row[1] (matchUrl),
+    // 100% identical to Phú Ngao Tool (ClipBoard.py: normalize(val) = str(val).strip().casefold()).
     let targetRows = [];
-    for (const target of [...new Set(targetCandidates)]) {
-      const matches = targetIndex.get(target) || [];
+    for (const raw of [...new Set(rawCandidates)]) {
+      const key = exactKey(raw);
+      if (!key) continue;
+      const matches = filterAuthoritativeRows(targetIndex.get(`exact:${key}`) || []);
       if (matches.length) {
         targetRows = matches;
         break;
       }
     }
-    // The selected Google Sheet tab is the operator's authoritative answer
-    // source. A prior local/AI correction must never replace an exact Sheet
-    // row. Those secondary sources are considered only for a Sheet miss.
-    const sheetRows = targetRows.filter(row =>
-      /^google-sheet-(?:live|bundled)$/i.test(String(row?.source || "")) ||
-      String(row?.sheetName || "") === "Trang tính1"
-    );
-    if (sheetRows.length) targetRows = sheetRows;
-    const answers = targetRows.map(row => canonicalAnswer(row.answer || row.suggestedAnswer, options)).filter(Boolean);
-    const unique = [...new Set(answers.map(normalizeAnswer))];
-    if (unique.length === 1) {
-      const answer = answers[0];
-      if (skipAnswer(answer)) return { action: "skip", answer: "Đổi", source: targetRows[0]?.source || "answer-memory", confidence: 1, reason: "Sheet memory says đổi câu." };
-      return { action: "answer", answer, source: targetRows[0]?.source || "answer-memory", confidence: Number(targetRows[0]?.confidence || 1) || 1, deterministic: true, reason: "Matched stored answer." };
+
+    // Pass 2: Normalized URL fallback (e.g. trailing slash or www. difference) only if Pass 1 missed.
+    if (!targetRows.length) {
+      for (const raw of [...new Set(rawCandidates)]) {
+        const norm = normalizeUrl(raw);
+        if (!norm) continue;
+        const matches = filterAuthoritativeRows(targetIndex.get(`norm:${norm}`) || targetIndex.get(norm) || []);
+        if (matches.length) {
+          targetRows = matches;
+          break;
+        }
+      }
     }
-    if (unique.length > 1) {
-      // If the user appended a newer "đổi câu" row at the bottom of the Sheet
-      // to override an older answer (e.g. disneyland.disney.go.com row 384 vs row 141),
-      // honor the newer skip instruction.
-      const lastAnswer = answers[answers.length - 1];
-      if (skipAnswer(lastAnswer)) {
+
+    const resolvedPairs = targetRows
+      .map(row => ({
+        row,
+        rawAnswer: text(row?.answer || row?.suggestedAnswer),
+        canonical: canonicalAnswer(row?.answer || row?.suggestedAnswer, options)
+      }))
+      .filter(item => item.canonical);
+
+    if (resolvedPairs.length >= 1) {
+      // If multiple rows exist in the Sheet for the same URL, always use the latest
+      // (bottom-most) row in the Sheet so operator updates override older entries.
+      const latest = resolvedPairs[resolvedPairs.length - 1];
+      const answer = latest.canonical;
+      const rowNum = latest.row?.rowNumber ? ` #${latest.row.rowNumber}` : "";
+      if (skipAnswer(answer)) {
         return {
           action: "skip",
           answer: "Đổi",
-          source: targetRows[targetRows.length - 1]?.source || "answer-memory",
+          rawSheetAnswer: latest.rawAnswer || "Đổi",
+          rowNumber: latest.row?.rowNumber || null,
+          source: latest.row?.source || "google-sheet-live",
           confidence: 1,
-          reason: "Latest Sheet row overrides with đổi câu."
+          reason: `Sheet dòng${rowNum} báo Đổi câu (${latest.rawAnswer || "đổi"}).`
         };
       }
-      return { action: "review", source: "answer-memory", confidence: 0, reason: "Multiple stored answers conflict for this target." };
+      return {
+        action: "answer",
+        answer,
+        rawSheetAnswer: latest.rawAnswer || answer,
+        rowNumber: latest.row?.rowNumber || null,
+        source: latest.row?.source || "google-sheet-live",
+        confidence: 1,
+        deterministic: true,
+        reason: `Khớp Sheet dòng${rowNum} (${latest.rawAnswer || answer} -> ${answer}).`
+      };
     }
-    // No Sheet answer is intentionally not guessed. The caller must stop and
-    // let the operator choose manually; in particular, never default to the
-    // first radio (Not Junk).
+
+    // No Sheet answer -> caller selects Option 1 (Not Junk) automatically per Phú Ngao Tool standard.
     return null;
   }
 
