@@ -1,0 +1,460 @@
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+const { URL } = require("url");
+
+const PORT = Number(process.env.PORT || 8790);
+const EXT_DIR = fs.existsSync(path.resolve(__dirname, "../uhrs-hit-watcher-extension/dashboard.html"))
+  ? path.resolve(__dirname, "../uhrs-hit-watcher-extension")
+  : __dirname;
+const WATCHER_STATUS_FILE = "C:\\Users\\Tafi\\.gemini\\antigravity\\brain\\f8126fb9-6434-4958-aeb4-e5abedff3084\\scratch\\watcher_status.json";
+
+const hubState = {
+  watcherSettings: {
+    appId: "63766",
+    skipTaskGroupId: "178599",
+    sheetId: "1YsI4jFvSIqbsGn6aXCfi84g5jNP3hqcQeWgsrKwk_ys",
+    sheetGid: "1271800557",
+    refreshSeconds: 30,
+    answerDelayMinSeconds: 17,
+    answerDelayMaxSeconds: 23,
+    autoAnswerSettleMs: 1500,
+    enabled: true,
+    autoAnswerEnabled: true,
+    stopOnNoHit: false,
+    autoOpenTask: false
+  },
+  activeTabs: {},
+  profiles: {},
+  adsPowerProfiles: [],
+  events: [],
+  questions: [],
+  queuedCommands: [],
+  sheetCache: {
+    records: [],
+    fetchedAt: 0
+  }
+};
+
+function parseCsvLine(line) {
+  const result = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === "," && !inQuotes) {
+      result.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+async function fetchLiveGoogleSheet(sheetId, sheetGid, force = false) {
+  const now = Date.now();
+  if (!force && hubState.sheetCache.records.length && now - hubState.sheetCache.fetchedAt < 60000) {
+    return hubState.sheetCache.records;
+  }
+  try {
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/export?format=csv&gid=${encodeURIComponent(sheetGid)}`;
+    const res = await fetch(csvUrl, { cache: "no-store" });
+    if (res.ok) {
+      const text = await res.text();
+      const lines = String(text || "").split(/\r?\n/);
+      const records = [];
+      let rowNumber = 0;
+      for (let idx = 0; idx < lines.length; idx += 1) {
+        const cols = parseCsvLine(lines[idx]);
+        const targetUrl = String(cols[0] || "").trim();
+        const matchUrl = String(cols[1] || "").trim();
+        const answer = String(cols[2] || "").trim();
+        const statusNote = String(cols[3] || "").trim();
+        const refNote = String(cols[4] || "").trim();
+        if (!targetUrl && !answer) continue;
+        rowNumber += 1;
+        records.push({
+          id: `sheet-${rowNumber}`,
+          source: "google-sheet-live",
+          rowNumber,
+          targetUrl,
+          matchUrl,
+          answer,
+          notes: [statusNote, refNote].filter(Boolean).join(" | ")
+        });
+      }
+      if (records.length) {
+        hubState.sheetCache = { records, fetchedAt: now };
+        return records;
+      }
+    }
+  } catch {}
+
+  try {
+    const bundledPath = path.join(EXT_DIR, "answer-memory.json");
+    if (fs.existsSync(bundledPath)) {
+      const bundled = JSON.parse(fs.readFileSync(bundledPath, "utf8"));
+      if (Array.isArray(bundled?.records)) {
+        return bundled.records;
+      }
+    }
+  } catch {}
+  return [];
+}
+
+async function syncAdsPowerLocalApi(apiUrl = "http://local.adspower.net:50325") {
+  try {
+    const cleanUrl = String(apiUrl || "http://local.adspower.net:50325").replace(/\/+$/, "");
+    const res = await fetch(`${cleanUrl}/api/v1/user/list?page=1&page_size=100`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const list = Array.isArray(data?.data?.list) ? data.data.list : [];
+    const mapped = list.map(item => ({
+      profileId: String(item.user_id || ""),
+      serialNumber: String(item.serial_number || ""),
+      profileName: String(item.name || item.serial_number || item.user_id || "Profile"),
+      groupName: String(item.group_name || ""),
+      proxyIp: String(item.ip || ""),
+      proxyCountry: String(item.ip_country || item.country || "").toUpperCase(),
+      proxyName: item.user_proxy_config?.proxy_host
+        ? `${item.user_proxy_config.proxy_type || "proxy"}://${item.user_proxy_config.proxy_host}:${item.user_proxy_config.proxy_port || ""}`
+        : ""
+    }));
+    if (mapped.length) {
+      hubState.adsPowerProfiles = mapped;
+    }
+    return mapped;
+  } catch {
+    return hubState.adsPowerProfiles;
+  }
+}
+
+function syncFromLocalWatcherStatus() {
+  try {
+    if (!fs.existsSync(WATCHER_STATUS_FILE)) return;
+    const raw = JSON.parse(fs.readFileSync(WATCHER_STATUS_FILE, "utf8"));
+    if (!raw || typeof raw !== "object") return;
+    const profileName = "JP29";
+    const tabKey = `${profileName}::live-40`;
+    const existingTab = hubState.activeTabs[tabKey];
+    const rawTime = Date.parse(raw.at || "") || Date.now();
+    const existingTime = Date.parse(existingTab?.lastSeenAt || "") || 0;
+
+    if (!existingTab || rawTime >= existingTime - 5000) {
+      hubState.activeTabs[tabKey] = {
+        ...(existingTab || {}),
+        profile: profileName,
+        adsPowerProfile: profileName,
+        adsPowerSerial: "40",
+        tabId: "live-40",
+        status: raw.detectedStatus || "waiting_20m",
+        message: raw.detectedReason || "No work available right now. Check again in 20 minutes.",
+        url: raw.pageUrl || "https://www.uhrs.ai/marketplace/app/63766",
+        title: raw.pageTitle || "UHRS",
+        targetUrl: raw.targetUrl || "",
+        questionText: raw.questionText || "",
+        matchedAnswer: raw.sheetMatch?.answer || "",
+        networkIp: "139.190.145.67",
+        networkCountry: "JP",
+        proxyName: "139.190.145.67 (JP)",
+        f5Active: raw.f5Enabled !== false,
+        autoAnswerEnabled: raw.autoAnswerEnabled !== false,
+        at: raw.at || new Date().toISOString(),
+        lastSeenAt: raw.at || new Date().toISOString()
+      };
+    }
+
+    if (!hubState.profiles[profileName]) {
+      hubState.profiles[profileName] = {
+        profileName,
+        proxyName: "139.190.145.67 (JP)",
+        networkIp: "139.190.145.67",
+        networkCountry: "JP",
+        status: raw.detectedStatus || "waiting_20m",
+        message: raw.detectedReason || "Đang chờ HIT (F5)",
+        lastSeenAt: raw.at || new Date().toISOString(),
+        completedCount: Number(raw.autoAnsweredCount || 0),
+        skippedCount: Number(raw.skippedQuestionCount || 0),
+        rejectedCount: 0,
+        totalEarnings: Number(raw.autoAnsweredCount || 0) * 0.03
+      };
+    }
+  } catch {}
+}
+
+function corsHeaders() {
+  return {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
+    "access-control-allow-headers": "content-type",
+    "access-control-allow-private-network": "true"
+  };
+}
+
+function sendJson(res, status, data) {
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    ...corsHeaders()
+  });
+  res.end(JSON.stringify(data));
+}
+
+function readJsonBody(req) {
+  return new Promise(resolve => {
+    let raw = "";
+    req.on("data", chunk => {
+      raw += chunk;
+      if (raw.length > 2 * 1024 * 1024) req.destroy();
+    });
+    req.on("end", () => {
+      try {
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch {
+        resolve({});
+      }
+    });
+    req.on("error", () => resolve({}));
+  });
+}
+
+function serveStaticFile(res, filename, contentType) {
+  const filePath = path.join(EXT_DIR, filename);
+  if (!fs.existsSync(filePath)) {
+    res.writeHead(404, { "content-type": "text/plain; charset=utf-8", ...corsHeaders() });
+    res.end("Not found");
+    return;
+  }
+  res.writeHead(200, {
+    "content-type": contentType,
+    "cache-control": "no-store",
+    ...corsHeaders()
+  });
+  fs.createReadStream(filePath).pipe(res);
+}
+
+async function requestHandler(req, res) {
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, corsHeaders());
+    res.end();
+    return;
+  }
+
+  const parsedUrl = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
+  const pathname = parsedUrl.pathname;
+
+  if (req.method === "GET" && (pathname === "/" || pathname === "/index.html" || pathname === "/dashboard.html")) {
+    serveStaticFile(res, "dashboard.html", "text/html; charset=utf-8");
+    return;
+  }
+  if (req.method === "GET" && pathname === "/dashboard.js") {
+    serveStaticFile(res, "dashboard.js", "application/javascript; charset=utf-8");
+    return;
+  }
+  if (req.method === "GET" && pathname === "/answer-memory.js") {
+    serveStaticFile(res, "answer-memory.js", "application/javascript; charset=utf-8");
+    return;
+  }
+  if (req.method === "GET" && pathname === "/answer-memory.json") {
+    serveStaticFile(res, "answer-memory.json", "application/json; charset=utf-8");
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/health") {
+    sendJson(res, 200, { ok: true, version: "3.0.0", status: "running" });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/state") {
+    syncFromLocalWatcherStatus();
+    sendJson(res, 200, {
+      ok: true,
+      watcherSettings: hubState.watcherSettings,
+      activeTabs: hubState.activeTabs,
+      profiles: Object.values(hubState.profiles),
+      adsPowerProfiles: hubState.adsPowerProfiles,
+      events: hubState.events,
+      questions: hubState.questions
+    });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/sheet") {
+    const sheetId = parsedUrl.searchParams.get("sheetId") || hubState.watcherSettings.sheetId;
+    const sheetGid = parsedUrl.searchParams.get("sheetGid") || hubState.watcherSettings.sheetGid;
+    const force = parsedUrl.searchParams.get("force") === "1";
+    const records = await fetchLiveGoogleSheet(sheetId, sheetGid, force);
+    sendJson(res, 200, {
+      ok: true,
+      sourceLabel: "Live Google Sheet",
+      count: records.length,
+      records
+    });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/adspower/scan") {
+    const apiUrl = parsedUrl.searchParams.get("apiUrl") || "http://local.adspower.net:50325";
+    const profiles = await syncAdsPowerLocalApi(apiUrl);
+    sendJson(res, 200, { ok: true, profiles });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/settings") {
+    sendJson(res, 200, { ok: true, settings: hubState.watcherSettings });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/settings") {
+    const body = await readJsonBody(req);
+    hubState.watcherSettings = { ...hubState.watcherSettings, ...body };
+    sendJson(res, 200, { ok: true, settings: hubState.watcherSettings });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/action") {
+    const payload = await readJsonBody(req);
+    const nowIso = new Date().toISOString();
+    const profileName = String(payload.adsPowerProfile || payload.profile || "JP29").trim() || "JP29";
+    const tabId = String(payload.tabId || "tab-main").trim();
+    const tabKey = `${profileName}::${tabId}`;
+
+    hubState.activeTabs[tabKey] = {
+      ...payload,
+      profile: profileName,
+      tabId,
+      at: nowIso,
+      lastSeenAt: nowIso
+    };
+
+    const prevProf = hubState.profiles[profileName] || {};
+    let isCompleted = false;
+    let isSkipped = false;
+    let isRejected = false;
+    let reward = 0;
+
+    if (payload.questionRecord && typeof payload.questionRecord === "object") {
+      const qr = payload.questionRecord;
+      const rs = String(qr.resultStatus || qr.status || "");
+      isSkipped = rs === "changed_question" || /đổi\s*câu/i.test(String(qr.answer || ""));
+      isRejected = Boolean(qr.rejected) || payload.status === "answer_rejected";
+      isCompleted = (qr.status === "completed" || qr.status === "manual_completed") && !isSkipped && !isRejected;
+      reward = isCompleted ? 0.03 : 0;
+
+      hubState.questions = [
+        {
+          id: qr.id || `q-${Date.now()}`,
+          at: nowIso,
+          profile: profileName,
+          proxyName: payload.proxyName || "",
+          networkIp: payload.networkIp || payload.adsPowerProxyIp || "",
+          networkCountry: payload.networkCountry || payload.adsPowerProxyCountry || "",
+          targetUrl: payload.targetUrl || qr.finalUrl || "",
+          answer: qr.answer || "",
+          status: isSkipped ? "skipped" : (isRejected ? "rejected" : (isCompleted ? "completed" : "failed")),
+          elapsedMs: Number(qr.elapsedMs || 0),
+          reason: qr.reason || "",
+          reward
+        },
+        ...hubState.questions
+      ].slice(0, 500);
+    }
+
+    hubState.profiles[profileName] = {
+      profileName,
+      proxyName: payload.proxyName || prevProf.proxyName || "",
+      networkIp: payload.networkIp || payload.adsPowerProxyIp || prevProf.networkIp || "",
+      networkCountry: payload.networkCountry || payload.adsPowerProxyCountry || prevProf.networkCountry || "",
+      status: payload.status || prevProf.status || "idle",
+      message: payload.message || prevProf.message || "",
+      lastSeenAt: nowIso,
+      completedCount: Number(prevProf.completedCount || 0) + (isCompleted ? 1 : 0),
+      skippedCount: Number(prevProf.skippedCount || 0) + (isSkipped ? 1 : 0),
+      rejectedCount: Number(prevProf.rejectedCount || 0) + (isRejected ? 1 : 0),
+      totalEarnings: Number(prevProf.totalEarnings || 0) + reward
+    };
+
+    hubState.events = [
+      {
+        at: nowIso,
+        profile: profileName,
+        status: payload.status || "idle",
+        message: payload.message || "",
+        targetUrl: payload.targetUrl || "",
+        url: payload.url || "",
+        confidence: payload.confidence
+      },
+      ...hubState.events
+    ].slice(0, 250);
+
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/commands") {
+    const cmds = hubState.queuedCommands.splice(0, hubState.queuedCommands.length);
+    sendJson(res, 200, { ok: true, commands: cmds });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/command") {
+    const body = await readJsonBody(req);
+    if (body.command) {
+      hubState.queuedCommands.push(body);
+    }
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/adspower/profiles") {
+    const body = await readJsonBody(req);
+    const list = Array.isArray(body.profiles) ? body.profiles : [];
+    hubState.adsPowerProfiles = list;
+    for (const p of list) {
+      const name = String(p.profileName || p.profileId || "").trim();
+      if (!name) continue;
+      if (!hubState.profiles[name]) {
+        hubState.profiles[name] = {
+          profileName: name,
+          proxyName: p.proxyName || "",
+          networkIp: p.proxyIp || "",
+          networkCountry: p.proxyCountry || "",
+          status: "offline",
+          message: "Đã đồng bộ từ AdsPower",
+          lastSeenAt: "",
+          completedCount: 0,
+          skippedCount: 0,
+          rejectedCount: 0,
+          totalEarnings: 0
+        };
+      }
+    }
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  sendJson(res, 404, { ok: false, error: "Not found" });
+}
+
+module.exports = requestHandler;
+
+if (require.main === module) {
+  syncFromLocalWatcherStatus();
+  syncAdsPowerLocalApi();
+  fetchLiveGoogleSheet(hubState.watcherSettings.sheetId, hubState.watcherSettings.sheetGid, true);
+  setInterval(syncFromLocalWatcherStatus, 4000);
+  setInterval(() => syncAdsPowerLocalApi(), 30000);
+
+  const server = http.createServer(requestHandler);
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`[UHRS Control Center v3.0] Hub Server running at http://127.0.0.1:${PORT}/`);
+  });
+}

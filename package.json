@@ -1,0 +1,10 @@
+{
+  "name": "uhrs-control-center-server",
+  "version": "3.0.0",
+  "description": "UHRS Control Center v3.0 Standalone Hub Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js"
+  }
+}
