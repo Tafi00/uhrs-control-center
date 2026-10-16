@@ -827,7 +827,7 @@
     });
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="6" class="empty-box">Không có Profile nào khớp với bộ lọc hiện tại.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-box">Không có Profile nào khớp với bộ lọc hiện tại.</td></tr>`;
       return;
     }
 
@@ -840,30 +840,28 @@
       return `
         <tr>
           <td>
-            <div style="font-weight:600;color:var(--text)">${escapeHtml(item.profileName)}</div>
-            <div class="mono" style="font-size:11px;color:var(--text-muted)">${item.serialNumber ? `#${escapeHtml(item.serialNumber)}` : "AdsPower"}</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-weight:600;color:var(--text)">${escapeHtml(item.profileName)}</span>
+              <span class="mono" style="font-size:11px;color:var(--text-muted)">${item.serialNumber ? `#${escapeHtml(item.serialNumber)}` : ""}</span>
+            </div>
+            <div class="mono" style="font-size:11.5px;color:var(--text-secondary);margin-top:2px">${escapeHtml(ipDisplay)}</div>
           </td>
-          <td>
-            <div class="mono" style="font-size:12px">${escapeHtml(ipDisplay)}</div>
-            <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(item.proxyName || "Proxy trực tiếp")}</div>
-          </td>
-          <td>
-            <span class="badge ${meta.badge}">
-              <span class="status-dot ${meta.dot}"></span>
-              ${escapeHtml(meta.label)}
-            </span>
-          </td>
-          <td style="max-width:280px">
-            <div style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.targetUrl || item.message || "Đang canh HIT...")}</div>
+          <td style="max-width:250px">
+            <div style="margin-bottom:4px">
+              <span class="badge ${meta.badge}">
+                <span class="status-dot ${meta.dot}"></span>
+                ${escapeHtml(meta.label)}
+              </span>
+            </div>
+            <div style="color:var(--text-secondary);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.targetUrl || item.message || "Đang canh HIT...")}</div>
             <div class="mono" style="font-size:11px;color:var(--text-muted)">${escapeHtml(formatTime(item.lastSeenAt))}</div>
           </td>
-          <td class="mono" style="font-size:12px">
+          <td class="mono" style="font-size:12px;white-space:nowrap">
             <div><span style="color:var(--emerald);font-weight:600">${item.completedCount}</span> xong · <span style="color:var(--amber)">${item.skippedCount}</span> đổi</div>
-            <div class="amount-positive" style="font-size:11.5px">${formatMoney(item.totalEarnings)}</div>
+            <div class="amount-positive" style="font-size:11.5px;margin-top:2px">${formatMoney(item.totalEarnings)}</div>
           </td>
-          <td style="text-align:right">
-            <div style="display:inline-flex;gap:6px">
-              ${item.tabId ? `<button class="btn btn-sm" data-tab-action="focus" data-tab-id="${escapeHtml(item.tabId)}">Chuyển tới</button>` : ""}
+          <td style="text-align:right;white-space:nowrap">
+            <div style="display:inline-flex;gap:5px">
               <button class="btn btn-sm" data-tab-action="start-f5" data-tab-id="${escapeHtml(item.tabId || "")}">Bật F5</button>
               <button class="btn btn-sm" data-tab-action="stop-f5" data-tab-id="${escapeHtml(item.tabId || "")}">Dừng</button>
               <button class="btn btn-sm" data-tab-action="reload" data-tab-id="${escapeHtml(item.tabId || "")}">Reload</button>
