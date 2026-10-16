@@ -1152,11 +1152,11 @@
               <!-- Instant Sheet Lookup & Quick Add right on the Workbench -->
               <div class="section-card">
                 <div class="section-header">
-                  <div class="section-title">Tra cứu & Ghi đè nhanh đáp án</div>
-                  <span class="mono" style="font-size:11px;color:var(--text-muted)">492 dòng Sheet</span>
+                  <div class="section-title">Tra cứu & Ghi đè nhanh đáp án (Chuẩn Phú Ngao Tool)</div>
+                  <span class="mono" style="font-size:11px;color:var(--text-muted)">535 dòng Sheet</span>
                 </div>
                 <div class="section-body">
-                  <input type="text" id="quickLookupInput" class="input mono" placeholder="Dán hoặc gõ URL cần tra cứu nhanh trong 492 câu..." style="width:100%">
+                  <input type="text" id="quickLookupInput" class="input mono" placeholder="Dán URL cần tra cứu nhanh (Không có trong Sheet -> Auto chọn 1)..." style="width:100%">
                   <div class="lookup-result" id="quickLookupResult">
                     <span style="color:var(--text-muted)">Nhập một phần URL hoặc domain để kiểm tra đáp án ngay tại đây.</span>
                   </div>
@@ -1166,12 +1166,14 @@
                     <input type="text" id="customMemUrl" class="input mono" placeholder="https://example.com/..." required style="width:100%">
                     <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px">
                       <select id="customMemAnswer" class="select">
-                        <option value="1">1 · Not Junk (Bình thường)</option>
-                        <option value="2">2 · Error / Page not found</option>
-                        <option value="4">4 · Low or no content</option>
-                        <option value="3">3 · Site unreachable</option>
-                        <option value="5">5 · Mostly ads / spam</option>
-                        <option value="2Đ">2Đ · Đổi câu (178599)</option>
+                        <option value="1">1 · Not Junk (Mặc định)</option>
+                        <option value="2">2 · Error Message / Page not found</option>
+                        <option value="3">3 · Low / No Content / Ads only</option>
+                        <option value="4">4 · Site unreachable</option>
+                        <option value="5">5 · Automatic Redirection</option>
+                        <option value="6">6 · Other type of Junk</option>
+                        <option value="7">7 · Can't Judge (Ko chấm)</option>
+                        <option value="đổi câu">đổi câu · Chuyển nhóm 178599</option>
                       </select>
                       <input type="text" id="customMemNote" class="input" placeholder="Ghi chú (tùy chọn)">
                       <button type="submit" class="btn btn-primary">Lưu</button>
@@ -1200,7 +1202,7 @@
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <input type="text" id="sheetSearchInput" class="input mono" placeholder="Tìm theo URL, mã đáp án, ghi chú..." style="width:260px">
                 <button class="btn btn-sm btn-primary" id="btnForceSyncSheet" type="button">Đồng bộ Sheet</button>
-                <a class="btn btn-sm" id="linkOpenGoogleSheet" href="https://docs.google.com/spreadsheets/d/1YsI4jFvSIqbsGn6aXCfi84g5jNP3hqcQeWgsrKwk_ys/edit#gid=1271800557" target="_blank" rel="noopener">Mở Google Sheet ↗</a>
+                <a class="btn btn-sm" id="linkOpenGoogleSheet" href="https://docs.google.com/spreadsheets/d/1Px75lVqZHnwRuvwzA83YmVj_I0sLm9EbBS-mpG_GOL0/edit#gid=1271800557" target="_blank" rel="noopener">Mở Google Sheet ↗</a>
               </div>
             </div>
 

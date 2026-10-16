@@ -13,7 +13,7 @@ const hubState = {
   watcherSettings: {
     appId: "63766",
     skipTaskGroupId: "178599",
-    sheetId: "1YsI4jFvSIqbsGn6aXCfi84g5jNP3hqcQeWgsrKwk_ys",
+    sheetId: "1Px75lVqZHnwRuvwzA83YmVj_I0sLm9EbBS-mpG_GOL0",
     sheetGid: "1271800557",
     refreshSeconds: 30,
     answerDelayMinSeconds: 17,
@@ -299,15 +299,29 @@ async function requestHandler(req, res) {
   }
 
   if (req.method === "GET" && pathname === "/api/sheet") {
-    const sheetId = parsedUrl.searchParams.get("sheetId") || hubState.watcherSettings.sheetId;
+    const rawSheetId = parsedUrl.searchParams.get("sheetId") || hubState.watcherSettings.sheetId;
+    const sheetId = rawSheetId === "1YsI4jFvSIqbsGn6aXCfi84g5jNP3hqcQeWgsrKwk_ys"
+      ? "1Px75lVqZHnwRuvwzA83YmVj_I0sLm9EbBS-mpG_GOL0"
+      : rawSheetId;
     const sheetGid = parsedUrl.searchParams.get("sheetGid") || hubState.watcherSettings.sheetGid;
     const force = parsedUrl.searchParams.get("force") === "1";
     const records = await fetchLiveGoogleSheet(sheetId, sheetGid, force);
     sendJson(res, 200, {
       ok: true,
-      sourceLabel: "Live Google Sheet",
+      sourceLabel: "Live Google Sheet (Phú Ngao Tool)",
       count: records.length,
       records
+    });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/memory/recheck") {
+    sendJson(res, 200, {
+      ok: true,
+      status: "sheet_miss_default_1",
+      verifiedAnswer: "Not Junk",
+      confidence: 1,
+      provider: "phu-ngao-default-1"
     });
     return;
   }

@@ -23,7 +23,7 @@
     adsPowerProxyCountry: "",
     appId: "63766",
     skipTaskGroupId: "178599",
-    sheetId: "1YsI4jFvSIqbsGn6aXCfi84g5jNP3hqcQeWgsrKwk_ys",
+    sheetId: "1Px75lVqZHnwRuvwzA83YmVj_I0sLm9EbBS-mpG_GOL0",
     sheetGid: "1271800557",
     refreshSeconds: 30,
     answerDelayMinSeconds: 17,
@@ -129,23 +129,25 @@
 
   function isSkipAnswerText(answer) {
     const text = String(answer || "").trim();
-    return /^(?:đổi(?:\s*câu)?|doi(?:\s*cau)?|skip(?:\s*question)?|change\s*question|\d+\s*[đd]|\d+\s*đổi)$/i.test(text);
+    return /^(?:(?:link\s+)?đổi(?:\s*câu)?|(?:link\s+)?doi(?:\s*cau)?|skip(?:\s*question)?|change\s*question)$/i.test(text);
   }
 
   function describeSheetAnswer(answer) {
     const raw = String(answer || "").trim();
     if (!raw) return "";
-    if (isSkipAnswerText(raw)) return `${raw} · Đổi câu`;
-    const numMatch = raw.match(/^([1-7])\b/);
+    if (isSkipAnswerText(raw)) return `${raw} · Đổi câu (178599)`;
+    if (/^(?:ko|không)\s*chấm$/i.test(raw)) return `${raw} · 7 · Can't Judge`;
+    if (raw === "0") return "0 · Mặc định chọn 1 (Not Junk)";
+    const numMatch = raw.match(/^([1-7])(?:\s*(?:ok|d|đ|đúng|dung))?$/i) || raw.match(/^([1-7])\b/);
     if (!numMatch) return raw;
     const codeMap = {
       "1": "Not Junk",
-      "2": "Error / Page not found",
-      "3": "Site unreachable",
-      "4": "Low or no content",
-      "5": "Mostly ads / spam",
-      "6": "Auto redirect",
-      "7": "Can't judge"
+      "2": "Error Message / Page not found / No results",
+      "3": "Low / No Content / Ads only pages",
+      "4": "Site unreachable",
+      "5": "Automatic Redirection",
+      "6": "Other type of Junk",
+      "7": "Can't Judge"
     };
     const label = codeMap[numMatch[1]];
     return label ? `${raw} · ${label}` : raw;
@@ -360,7 +362,11 @@
   }
 
   async function loadGoogleSheetRecords(force = false) {
-    const sheetId = String(state.settings.sheetId || DEFAULT_SETTINGS.sheetId).trim();
+    const rawSheetId = String(state.settings.sheetId || DEFAULT_SETTINGS.sheetId).trim();
+    const sheetId = rawSheetId === "1YsI4jFvSIqbsGn6aXCfi84g5jNP3hqcQeWgsrKwk_ys"
+      ? DEFAULT_SETTINGS.sheetId
+      : rawSheetId;
+    state.settings.sheetId = sheetId;
     const sheetGid = String(state.settings.sheetGid || DEFAULT_SETTINGS.sheetGid).trim();
     const sheetLinkEl = $("linkOpenGoogleSheet");
     if (sheetLinkEl) {
@@ -667,7 +673,7 @@
     ).slice(0, 5);
 
     if (!matches.length) {
-      box.innerHTML = `<span style="color:var(--rose)">Không tìm thấy URL khớp "${escapeHtml(q)}" trong 492 dòng Sheet. Bạn có thể thêm nhanh ở khung bên dưới.</span>`;
+      box.innerHTML = `<span style="color:var(--emerald);font-weight:500">Không có trong Sheet (${state.sheetRecords.length || 535} dòng) &rarr; Tool sẽ <b>TỰ ĐỘNG CHỌN 1 · Not Junk</b> theo chuẩn Phú Ngao Tool.</span>`;
       return;
     }
 
