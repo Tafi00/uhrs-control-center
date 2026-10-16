@@ -143,11 +143,18 @@ function syncFromLocalWatcherStatus() {
     if (!fs.existsSync(WATCHER_STATUS_FILE)) return;
     const raw = JSON.parse(fs.readFileSync(WATCHER_STATUS_FILE, "utf8"));
     if (!raw || typeof raw !== "object") return;
+    const pi = raw.pageInfo || {};
     const profileName = "JP29";
     const tabKey = `${profileName}::live-40`;
     const existingTab = hubState.activeTabs[tabKey];
-    const rawTime = Date.parse(raw.at || "") || Date.now();
+    const nowIso = raw.updatedAt || raw.at || new Date().toISOString();
+    const rawTime = Date.parse(nowIso) || Date.now();
     const existingTime = Date.parse(existingTab?.lastSeenAt || "") || 0;
+
+    const status = (pi.status && pi.status !== "unknown")
+      ? pi.status
+      : (raw.detectedStatus || (pi.reduxJudging?.missingHitsReason === 6 ? "waiting_20m" : "waiting"));
+    const message = pi.message || raw.detectedReason || "Đang treo F5 canh HIT trên UHRS (63766)";
 
     if (!existingTab || rawTime >= existingTime - 5000) {
       hubState.activeTabs[tabKey] = {
@@ -156,20 +163,20 @@ function syncFromLocalWatcherStatus() {
         adsPowerProfile: profileName,
         adsPowerSerial: "40",
         tabId: "live-40",
-        status: raw.detectedStatus || "waiting_20m",
-        message: raw.detectedReason || "No work available right now. Check again in 20 minutes.",
-        url: raw.pageUrl || "https://www.uhrs.ai/marketplace/app/63766",
-        title: raw.pageTitle || "UHRS",
-        targetUrl: raw.targetUrl || "",
+        status,
+        message,
+        url: pi.url || raw.pageUrl || "https://www.uhrs.ai/marketplace/app/63766",
+        title: raw.pageTitle || "UHRS — HitApp 63766",
+        targetUrl: pi.targetUrl || raw.targetUrl || "",
         questionText: raw.questionText || "",
-        matchedAnswer: raw.sheetMatch?.answer || "",
+        matchedAnswer: pi.autoAnswerSelected || raw.sheetMatch?.answer || "",
         networkIp: "139.190.145.67",
         networkCountry: "JP",
         proxyName: "139.190.145.67 (JP)",
-        f5Active: raw.f5Enabled !== false,
-        autoAnswerEnabled: raw.autoAnswerEnabled !== false,
-        at: raw.at || new Date().toISOString(),
-        lastSeenAt: raw.at || new Date().toISOString()
+        f5Active: pi.f5Enabled !== false,
+        autoAnswerEnabled: true,
+        at: nowIso,
+        lastSeenAt: nowIso
       };
     }
 
@@ -179,14 +186,18 @@ function syncFromLocalWatcherStatus() {
         proxyName: "139.190.145.67 (JP)",
         networkIp: "139.190.145.67",
         networkCountry: "JP",
-        status: raw.detectedStatus || "waiting_20m",
-        message: raw.detectedReason || "Đang chờ HIT (F5)",
-        lastSeenAt: raw.at || new Date().toISOString(),
-        completedCount: Number(raw.autoAnsweredCount || 0),
+        status,
+        message,
+        lastSeenAt: nowIso,
+        completedCount: Number(raw.hitsDetected || 0),
         skippedCount: Number(raw.skippedQuestionCount || 0),
         rejectedCount: 0,
-        totalEarnings: Number(raw.autoAnsweredCount || 0) * 0.03
+        totalEarnings: Number(raw.hitsDetected || 0) * 0.03
       };
+    } else {
+      hubState.profiles[profileName].status = status;
+      hubState.profiles[profileName].message = message;
+      hubState.profiles[profileName].lastSeenAt = nowIso;
     }
   } catch {}
 }
