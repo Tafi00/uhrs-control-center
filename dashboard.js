@@ -848,6 +848,22 @@
     const list = buildUnifiedProfilesList();
     if ($("profileTotalBadge")) $("profileTotalBadge").textContent = String(list.length);
 
+    const currentSelected = state.selectedProfile || state.liveTabState?.adsPowerProfile || state.liveTabState?.profile || "JP29";
+    const quickSwitcher = $("quickProfileSwitcher");
+    if (quickSwitcher) {
+      quickSwitcher.innerHTML = list.map(item => {
+        const meta = statusMeta(item.status);
+        const isSel = item.profileName === currentSelected;
+        return `
+          <button type="button" class="filter-pill ${isSel ? "active" : ""}" data-quick-profile="${escapeHtml(item.profileName)}" style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap">
+            <span class="status-dot ${meta.dot}" style="width:6px;height:6px"></span>
+            <span>${escapeHtml(item.profileName)}</span>
+            ${item.serialNumber ? `<span class="mono" style="font-size:10px;opacity:0.7">#${escapeHtml(item.serialNumber)}</span>` : ""}
+          </button>
+        `;
+      }).join("");
+    }
+
     const filter = state.profileFilter;
     const q = state.profileSearch.trim().toLowerCase();
 
@@ -866,8 +882,6 @@
       tbody.innerHTML = `<tr><td colspan="4" class="empty-box">Không có Profile nào khớp với bộ lọc hiện tại.</td></tr>`;
       return;
     }
-
-    const currentSelected = state.selectedProfile || state.liveTabState?.adsPowerProfile || state.liveTabState?.profile || "JP29";
 
     tbody.innerHTML = filtered.map(item => {
       const meta = statusMeta(item.status);
@@ -1316,6 +1330,14 @@
   });
 
   $("btnScanAdsPower")?.addEventListener("click", () => scanAdsPowerProfiles(true));
+
+  $("quickProfileSwitcher")?.addEventListener("click", event => {
+    const btn = event.target.closest("button[data-quick-profile]");
+    if (!btn) return;
+    state.selectedProfile = btn.dataset.quickProfile || "";
+    renderAll();
+    showToast(`Đang xem Profile ${state.selectedProfile}`);
+  });
 
   $("profileFilterPills")?.addEventListener("click", event => {
     const btn = event.target.closest("button[data-filter]");

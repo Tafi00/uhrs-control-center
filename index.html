@@ -64,6 +64,8 @@
 
     html, body {
       height: 100%;
+      max-width: 100vw;
+      overflow-x: hidden;
       background: var(--bg);
       color: var(--text);
       font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -295,8 +297,9 @@
     .topbar-left {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       min-width: 0;
+      flex-wrap: wrap;
     }
 
     .live-indicator {
@@ -338,8 +341,8 @@
     .topbar-controls {
       display: flex;
       align-items: center;
-      gap: 10px;
-      flex-wrap: nowrap;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
     .inline-control-group {
@@ -877,6 +880,13 @@
       .metric-ribbon {
         grid-template-columns: repeat(2, 1fr);
       }
+      .metric-cell:nth-child(2n) {
+        border-right: none;
+      }
+      .metric-cell:nth-child(1),
+      .metric-cell:nth-child(2) {
+        border-bottom: 1px solid var(--border);
+      }
     }
 
     @media (max-width: 860px) {
@@ -888,11 +898,140 @@
         position: static;
         border-right: none;
         border-bottom: 1px solid var(--border);
+        padding: 10px 12px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 10px;
+      }
+      .brand {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding: 0;
+      }
+      .sidebar-footer {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+        grid-column: 2;
+        grid-row: 1;
+      }
+      .conn-pill {
+        padding: 5px 8px;
+      }
+      .nav-group-label,
+      .sidebar-shortcuts {
+        display: none;
+      }
+      .nav-list {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+      }
+      .nav-tab {
+        padding: 7px 10px;
+        font-size: 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
       }
       .topbar {
         height: auto;
-        padding: 10px 16px;
+        position: static;
+        padding: 10px 12px;
         flex-wrap: wrap;
+        gap: 8px;
+      }
+      .topbar-left,
+      .topbar-controls {
+        width: 100%;
+        gap: 6px;
+      }
+      .content-area {
+        padding: 12px;
+      }
+      .section-header {
+        padding: 10px 12px;
+      }
+      .section-body {
+        padding: 12px;
+      }
+      .setting-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px 14px;
+      }
+      .setting-control {
+        flex-wrap: wrap;
+        width: 100%;
+      }
+      .setting-control .input {
+        flex: 1 1 120px;
+        max-width: 100% !important;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .metric-cell {
+        padding: 10px 12px;
+        min-width: 0;
+      }
+      .metric-label {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        font-size: 10.5px;
+      }
+      .metric-val {
+        font-size: 15px;
+        line-height: 1.25;
+        word-break: break-word;
+      }
+      .metric-sub {
+        font-size: 11px;
+        white-space: normal;
+      }
+      #pane-monitor table,
+      #pane-monitor tbody {
+        display: block;
+        width: 100%;
+      }
+      #pane-monitor thead {
+        display: none;
+      }
+      #pane-monitor tbody tr {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px;
+        border-bottom: 1px solid var(--border);
+      }
+      #pane-monitor tbody tr:last-child {
+        border-bottom: none;
+      }
+      #pane-monitor tbody td {
+        padding: 0;
+        border: none;
+        max-width: 100% !important;
+        text-align: left !important;
+        white-space: normal !important;
+      }
+      #pane-monitor tbody td:last-child > div {
+        display: flex !important;
+        flex-wrap: wrap;
+        width: 100%;
+        gap: 6px;
+      }
+      #pane-monitor tbody td:last-child .btn {
+        flex: 1 1 auto;
+      }
+      #customMemoryForm > div:last-child {
+        grid-template-columns: 1fr !important;
+      }
+      #profileSearchInput,
+      #sheetSearchInput {
+        width: 100% !important;
       }
     }
   </style>
@@ -1026,6 +1165,12 @@
       <main class="content-area">
         <!-- TAB 1: WORKBENCH -->
         <section class="tab-pane active" id="pane-monitor">
+          <!-- Quick Account Switcher Bar -->
+          <div id="quickProfileSwitcherBar" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px">
+            <span style="font-size:11.5px;color:var(--text-muted);font-weight:500;white-space:nowrap">Chuyển nhanh Profile:</span>
+            <div class="segmented" id="quickProfileSwitcher" style="flex-wrap:nowrap"></div>
+          </div>
+
           <!-- Compact 4-Cell Metric Strip -->
           <div class="metric-ribbon">
             <div class="metric-cell">
