@@ -40,7 +40,17 @@ const hubState = {
 try {
   if (fs.existsSync(HUB_CACHE_FILE)) {
     const saved = JSON.parse(fs.readFileSync(HUB_CACHE_FILE, "utf8"));
-    if (saved?.watcherSettings) hubState.watcherSettings = { ...hubState.watcherSettings, ...saved.watcherSettings };
+    if (saved?.watcherSettings && typeof saved.watcherSettings === "object") {
+      for (const k of [
+        "appId", "skipTaskGroupId", "sheetId", "sheetGid",
+        "refreshSeconds", "answerDelayMinSeconds", "answerDelayMaxSeconds",
+        "autoAnswerSettleMs", "enabled", "autoAnswerEnabled", "stopOnNoHit", "autoOpenTask"
+      ]) {
+        if (saved.watcherSettings[k] !== undefined) {
+          hubState.watcherSettings[k] = saved.watcherSettings[k];
+        }
+      }
+    }
     if (saved?.profiles) hubState.profiles = { ...hubState.profiles, ...saved.profiles };
     if (Array.isArray(saved?.adsPowerProfiles)) hubState.adsPowerProfiles = saved.adsPowerProfiles;
   }
