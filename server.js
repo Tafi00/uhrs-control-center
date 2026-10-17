@@ -111,6 +111,21 @@ async function fetchLiveGoogleSheet(sheetId, sheetGid, force = false) {
   return [];
 }
 
+function mergeAdsPowerProfilesList(incoming) {
+  const byName = new Map();
+  for (const item of hubState.adsPowerProfiles || []) {
+    const key = String(item.profileName || item.profileId || "").trim();
+    if (key && !/^(?:Unknown|Default)$/i.test(key)) byName.set(key, item);
+  }
+  for (const item of incoming || []) {
+    const key = String(item.profileName || item.profileId || "").trim();
+    if (!key || /^(?:Unknown|Default)$/i.test(key)) continue;
+    byName.set(key, { ...(byName.get(key) || {}), ...item, profileName: key });
+  }
+  hubState.adsPowerProfiles = Array.from(byName.values());
+  return hubState.adsPowerProfiles;
+}
+
 async function syncAdsPowerLocalApi(apiUrl = "http://127.0.0.1:50325") {
   try {
     const cleanUrl = String(apiUrl || "http://127.0.0.1:50325").replace(/\/+$/, "");
@@ -135,7 +150,7 @@ async function syncAdsPowerLocalApi(apiUrl = "http://127.0.0.1:50325") {
       };
     });
     if (mapped.length) {
-      hubState.adsPowerProfiles = mapped;
+      mergeAdsPowerProfilesList(mapped);
       for (const p of mapped) {
         const name = p.profileName;
         if (!name) continue;
@@ -158,7 +173,7 @@ async function syncAdsPowerLocalApi(apiUrl = "http://127.0.0.1:50325") {
         }
       }
     }
-    return mapped;
+    return hubState.adsPowerProfiles;
   } catch {
     return hubState.adsPowerProfiles;
   }
@@ -367,6 +382,31 @@ async function requestHandler(req, res) {
   if (req.method === "POST" && pathname === "/api/settings") {
     const body = await readJsonBody(req);
     hubState.watcherSettings = { ...hubState.watcherSettings, ...body };
+    const nowMs = Date.now();
+    if (body.answerDelayMinSeconds || body.answerDelayMaxSeconds) {
+      hubState.queuedCommands.push({
+        id: `cmd-${nowMs}-delay`,
+        at: nowMs,
+        command: "SET_DELAY",
+        minSec: hubState.watcherSettings.answerDelayMinSeconds,
+        maxSec: hubState.watcherSettings.answerDelayMaxSeconds
+      });
+    }
+    if (body.refreshSeconds) {
+      hubState.queuedCommands.push({
+        id: `cmd-${nowMs}-refresh`,
+        at: nowMs,
+        command: "SET_REFRESH",
+        refreshSeconds: hubState.watcherSettings.refreshSeconds
+      });
+    }
+    if (typeof body.enabled === "boolean") {
+      hubState.queuedCommands.push({
+        id: `cmd-${nowMs}-f5`,
+        at: nowMs,
+        command: body.enabled ? "START_F5" : "STOP_F5"
+      });
+    }
     sendJson(res, 200, { ok: true, settings: hubState.watcherSettings });
     return;
   }
@@ -374,13 +414,15 @@ async function requestHandler(req, res) {
   if (req.method === "POST" && pathname === "/api/action") {
     const payload = await readJsonBody(req);
     const nowIso = new Date().toISOString();
-    const profileName = String(payload.adsPowerProfile || payload.profile || "JP29").trim() || "JP29";
+    const rawProf = String(payload.adsPowerProfile || payload.profile || "").trim();
+    const profileName = (!rawProf || /^(?:Unknown|Default)$/i.test(rawProf)) ? "JP29" : rawProf;
     const tabId = String(payload.tabId || "tab-main").trim();
     const tabKey = `${profileName}::${tabId}`;
 
     hubState.activeTabs[tabKey] = {
       ...payload,
       profile: profileName,
+      adsPowerProfile: profileName,
       tabId,
       at: nowIso,
       lastSeenAt: nowIso
@@ -419,11 +461,17 @@ async function requestHandler(req, res) {
       ].slice(0, 500);
     }
 
+    const netIp = payload.networkIp || payload.adsPowerProxyIp || prevProf.networkIp || "";
+    const netCountry = payload.networkCountry || payload.adsPowerProxyCountry || prevProf.networkCountry || "";
+    const proxyNm = payload.proxyName || prevProf.proxyName || (netIp ? `${netIp}${netCountry ? ` (${netCountry})` : ""}` : "");
+
     hubState.profiles[profileName] = {
       profileName,
-      proxyName: payload.proxyName || prevProf.proxyName || "",
-      networkIp: payload.networkIp || payload.adsPowerProxyIp || prevProf.networkIp || "",
-      networkCountry: payload.networkCountry || payload.adsPowerProxyCountry || prevProf.networkCountry || "",
+      profileId: payload.adsPowerProfileId || prevProf.profileId || "",
+      serialNumber: payload.adsPowerSerial || prevProf.serialNumber || "",
+      proxyName: proxyNm,
+      networkIp: netIp,
+      networkCountry: netCountry,
       status: payload.status || prevProf.status || "idle",
       message: payload.message || prevProf.message || "",
       lastSeenAt: nowIso,
@@ -432,6 +480,17 @@ async function requestHandler(req, res) {
       rejectedCount: Number(prevProf.rejectedCount || 0) + (isRejected ? 1 : 0),
       totalEarnings: Number(prevProf.totalEarnings || 0) + reward
     };
+
+    mergeAdsPowerProfilesList([
+      {
+        profileName,
+        profileId: payload.adsPowerProfileId || prevProf.profileId || "",
+        serialNumber: payload.adsPowerSerial || prevProf.serialNumber || "",
+        proxyIp: netIp,
+        proxyCountry: netCountry,
+        proxyName: proxyNm
+      }
+    ]);
 
     hubState.events = [
       {
@@ -451,15 +510,22 @@ async function requestHandler(req, res) {
   }
 
   if (req.method === "GET" && pathname === "/api/commands") {
-    const cmds = hubState.queuedCommands.splice(0, hubState.queuedCommands.length);
-    sendJson(res, 200, { ok: true, commands: cmds });
+    const nowMs = Date.now();
+    hubState.queuedCommands = (hubState.queuedCommands || []).filter(c => nowMs - Number(c.at || nowMs) < 25000);
+    sendJson(res, 200, { ok: true, commands: hubState.queuedCommands });
     return;
   }
 
   if (req.method === "POST" && pathname === "/api/command") {
     const body = await readJsonBody(req);
     if (body.command) {
-      hubState.queuedCommands.push(body);
+      const nowMs = Date.now();
+      hubState.queuedCommands = (hubState.queuedCommands || []).filter(c => nowMs - Number(c.at || nowMs) < 25000);
+      hubState.queuedCommands.push({
+        id: body.id || `cmd-${nowMs}-${Math.random().toString(16).slice(2, 6)}`,
+        at: nowMs,
+        ...body
+      });
     }
     sendJson(res, 200, { ok: true });
     return;
@@ -468,19 +534,21 @@ async function requestHandler(req, res) {
   if (req.method === "POST" && pathname === "/api/adspower/profiles") {
     const body = await readJsonBody(req);
     const list = Array.isArray(body.profiles) ? body.profiles : [];
-    hubState.adsPowerProfiles = list;
+    mergeAdsPowerProfilesList(list);
     for (const p of list) {
       const name = String(p.profileName || p.profileId || "").trim();
-      if (!name) continue;
+      if (!name || /^(?:Unknown|Default)$/i.test(name)) continue;
       if (!hubState.profiles[name]) {
         hubState.profiles[name] = {
           profileName: name,
+          profileId: p.profileId || "",
+          serialNumber: p.serialNumber || "",
           proxyName: p.proxyName || "",
           networkIp: p.proxyIp || "",
           networkCountry: p.proxyCountry || "",
-          status: "offline",
-          message: "Đã đồng bộ từ AdsPower",
-          lastSeenAt: "",
+          status: "waiting_20m",
+          message: "Đang treo F5 canh HIT trên UHRS (63766)",
+          lastSeenAt: new Date().toISOString(),
           completedCount: 0,
           skippedCount: 0,
           rejectedCount: 0,
