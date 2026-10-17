@@ -214,15 +214,21 @@
     if (savedHub) candidates.push(savedHub.replace(/\/+$/, ""));
     candidates.push("http://127.0.0.1:8790");
 
-    try {
-      const epRes = await fetch("./hub-endpoint.json?t=" + Date.now(), { cache: "no-store" });
-      if (epRes.ok) {
-        const ep = await epRes.json();
-        if (ep?.hubUrl) {
-          candidates.unshift(String(ep.hubUrl).trim().replace(/\/+$/, ""));
+    for (const epUrl of [
+      "https://tafi00.github.io/uhrs-control-center/hub-endpoint.json?t=" + Date.now(),
+      "./hub-endpoint.json?t=" + Date.now()
+    ]) {
+      try {
+        const epRes = await fetch(epUrl, { cache: "no-store" });
+        if (epRes.ok) {
+          const ep = await epRes.json();
+          if (ep?.hubUrl) {
+            candidates.unshift(String(ep.hubUrl).trim().replace(/\/+$/, ""));
+            break;
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     for (const base of candidates) {
       try {
@@ -287,6 +293,23 @@
         state.questionHistory = Array.isArray(stored.uhrsQuestionHistory) ? stored.uhrsQuestionHistory : [];
         state.eventHistory = Array.isArray(stored.uhrsEventHistory) ? stored.uhrsEventHistory : [];
         state.localLearnedRecords = Array.isArray(stored.uhrsLearnedAnswers) ? stored.uhrsLearnedAnswers : [];
+
+        const localProf = String(stored.adsPowerProfile || stored.profile || newestState?.adsPowerProfile || newestState?.profile || "").trim();
+        if (localProf && !/^(?:Unknown|Default)$/i.test(localProf)) {
+          hubFetch("/api/action", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              ...(newestState || {}),
+              profile: localProf,
+              adsPowerProfile: localProf,
+              networkIp: stored.networkIp || stored.adsPowerProxyIp || newestState?.networkIp || "",
+              networkCountry: stored.networkCountry || stored.adsPowerProxyCountry || newestState?.networkCountry || "",
+              status: newestState?.status || "waiting_20m",
+              message: newestState?.message || "Đang treo F5 canh HIT trên UHRS (63766)"
+            })
+          }).catch(() => {});
+        }
 
         await loadStandaloneServerState(true);
         renderAll();

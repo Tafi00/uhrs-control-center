@@ -8,6 +8,7 @@ const EXT_DIR = fs.existsSync(path.resolve(__dirname, "../uhrs-hit-watcher-exten
   ? path.resolve(__dirname, "../uhrs-hit-watcher-extension")
   : __dirname;
 const WATCHER_STATUS_FILE = "C:\\Users\\Tafi\\.gemini\\antigravity\\brain\\f8126fb9-6434-4958-aeb4-e5abedff3084\\scratch\\watcher_status.json";
+const HUB_CACHE_FILE = "C:\\Users\\Tafi\\.gemini\\antigravity\\brain\\f8126fb9-6434-4958-aeb4-e5abedff3084\\scratch\\hub_state_cache.json";
 
 const hubState = {
   watcherSettings: {
@@ -15,9 +16,9 @@ const hubState = {
     skipTaskGroupId: "178599",
     sheetId: "1Px75lVqZHnwRuvwzA83YmVj_I0sLm9EbBS-mpG_GOL0",
     sheetGid: "1271800557",
-    refreshSeconds: 30,
-    answerDelayMinSeconds: 17,
-    answerDelayMaxSeconds: 23,
+    refreshSeconds: 8,
+    answerDelayMinSeconds: 11,
+    answerDelayMaxSeconds: 15,
     autoAnswerSettleMs: 1500,
     enabled: true,
     autoAnswerEnabled: true,
@@ -35,6 +36,29 @@ const hubState = {
     fetchedAt: 0
   }
 };
+
+try {
+  if (fs.existsSync(HUB_CACHE_FILE)) {
+    const saved = JSON.parse(fs.readFileSync(HUB_CACHE_FILE, "utf8"));
+    if (saved?.watcherSettings) hubState.watcherSettings = { ...hubState.watcherSettings, ...saved.watcherSettings };
+    if (saved?.profiles) hubState.profiles = { ...hubState.profiles, ...saved.profiles };
+    if (Array.isArray(saved?.adsPowerProfiles)) hubState.adsPowerProfiles = saved.adsPowerProfiles;
+  }
+} catch {}
+
+function saveHubStateCache() {
+  try {
+    fs.writeFileSync(
+      HUB_CACHE_FILE,
+      JSON.stringify({
+        watcherSettings: hubState.watcherSettings,
+        profiles: hubState.profiles,
+        adsPowerProfiles: hubState.adsPowerProfiles
+      }),
+      "utf8"
+    );
+  } catch {}
+}
 
 function parseCsvLine(line) {
   const result = [];
@@ -407,6 +431,7 @@ async function requestHandler(req, res) {
         command: body.enabled ? "START_F5" : "STOP_F5"
       });
     }
+    saveHubStateCache();
     sendJson(res, 200, { ok: true, settings: hubState.watcherSettings });
     return;
   }
@@ -505,6 +530,7 @@ async function requestHandler(req, res) {
       ...hubState.events
     ].slice(0, 250);
 
+    saveHubStateCache();
     sendJson(res, 200, { ok: true });
     return;
   }
@@ -556,6 +582,7 @@ async function requestHandler(req, res) {
         };
       }
     }
+    saveHubStateCache();
     sendJson(res, 200, { ok: true });
     return;
   }
