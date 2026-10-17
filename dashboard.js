@@ -252,6 +252,8 @@
     return fetch(`${base}${apiPath}`, options);
   }
 
+  let lastSettingsSaveAt = 0;
+
   /* Data Loading */
   async function loadLocalExtensionState() {
     if (!isExtensionEnv) {
@@ -260,17 +262,19 @@
     }
     return new Promise(resolve => {
       chrome.storage.local.get(null, async stored => {
-        const mergedSettings = { ...DEFAULT_SETTINGS };
-        for (const key of Object.keys(DEFAULT_SETTINGS)) {
-          if (key in stored && stored[key] !== undefined) {
-            mergedSettings[key] = stored[key];
+        if (Date.now() - lastSettingsSaveAt >= 3500) {
+          const mergedSettings = { ...DEFAULT_SETTINGS };
+          for (const key of Object.keys(DEFAULT_SETTINGS)) {
+            if (key in stored && stored[key] !== undefined) {
+              mergedSettings[key] = stored[key];
+            }
           }
+          if (/hit-watch-server\.vercel\.app/i.test(String(mergedSettings.serverUrl || ""))) {
+            mergedSettings.serverUrl = "http://127.0.0.1:8790/api/action";
+            mergedSettings.remoteServerEnabled = true;
+          }
+          state.settings = mergedSettings;
         }
-        if (/hit-watch-server\.vercel\.app/i.test(String(mergedSettings.serverUrl || ""))) {
-          mergedSettings.serverUrl = "http://127.0.0.1:8790/api/action";
-          mergedSettings.remoteServerEnabled = true;
-        }
-        state.settings = mergedSettings;
 
         const tabStates = {};
         let newestState = stored.uhrsLatestActiveState || null;
@@ -323,7 +327,7 @@
       const res = await hubFetch("/api/state", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
-      if (data.watcherSettings) {
+      if (data.watcherSettings && Date.now() - lastSettingsSaveAt >= 3500) {
         if (mergeIntoExtension) {
           const sharedKeys = [
             "appId",
@@ -334,13 +338,14 @@
             "answerDelayMinSeconds",
             "answerDelayMaxSeconds",
             "autoAnswerSettleMs",
-            "autoAnswerEnabled"
+            "autoAnswerEnabled",
+            "enabled"
           ];
           const nextLocal = {};
           for (const k of sharedKeys) {
             if (data.watcherSettings[k] !== undefined && data.watcherSettings[k] !== "") {
               state.settings[k] = data.watcherSettings[k];
-              nextLocal[k] = data.watcherSettings[k];
+              if (k !== "enabled") nextLocal[k] = data.watcherSettings[k];
             }
           }
           if (Object.keys(nextLocal).length && globalThis.chrome?.storage?.local) {
@@ -833,7 +838,10 @@
       map.set(name, existing);
     }
 
-    for (const tabState of Object.values(state.activeStatesByTab || {})) {
+    const sortedTabStates = Object.values(state.activeStatesByTab || {}).sort(
+      (a, b) => (Date.parse(a.lastSeenAt || a.at || "") || 0) - (Date.parse(b.lastSeenAt || b.at || "") || 0)
+    );
+    for (const tabState of sortedTabStates) {
       let name = String(tabState.adsPowerProfile || tabState.profile || state.settings.adsPowerProfile || state.settings.profile || "JP29").trim();
       if (/^(?:Unknown|Default)$/i.test(name)) {
         name = String(state.settings.adsPowerProfile || state.settings.profile || "").trim();
@@ -857,14 +865,18 @@
         rejectedCount: 0,
         totalEarnings: 0
       };
-      existing.status = tabState.status || existing.status;
-      existing.message = tabState.message || existing.message;
+      const tabTime = Date.parse(tabState.lastSeenAt || tabState.at || "") || 0;
+      const existTime = Date.parse(existing.lastSeenAt || "") || 0;
+      if (tabTime >= existTime - 2000 || !existing.lastSeenAt) {
+        existing.status = tabState.status || existing.status;
+        existing.message = tabState.message || existing.message;
+        existing.lastSeenAt = tabState.at || tabState.lastSeenAt || existing.lastSeenAt;
+      }
       existing.targetUrl = tabState.targetUrl || existing.targetUrl;
       existing.tabId = tabState.tabId || existing.tabId;
       existing.networkIp = tabState.networkIp || tabState.adsPowerProxyIp || existing.networkIp;
       existing.networkCountry = tabState.networkCountry || tabState.adsPowerProxyCountry || existing.networkCountry;
       existing.proxyName = tabState.proxyName || existing.proxyName;
-      existing.lastSeenAt = tabState.at || tabState.lastSeenAt || existing.lastSeenAt;
       map.set(name, existing);
     }
 
@@ -976,9 +988,9 @@
           <td style="text-align:right;white-space:nowrap">
             <div style="display:inline-flex;gap:5px">
               <button class="btn btn-sm ${isSelected ? "btn-primary" : ""}" data-tab-action="select-profile" data-profile-name="${escapeHtml(item.profileName)}">${isSelected ? "Đang xem" : "Xem"}</button>
-              <button class="btn btn-sm" data-tab-action="start-f5" data-tab-id="${escapeHtml(item.tabId || "")}">Bật F5</button>
-              <button class="btn btn-sm" data-tab-action="stop-f5" data-tab-id="${escapeHtml(item.tabId || "")}">Dừng</button>
-              <button class="btn btn-sm" data-tab-action="reload" data-tab-id="${escapeHtml(item.tabId || "")}">Reload</button>
+              <button class="btn btn-sm" data-tab-action="start-f5" data-profile-name="${escapeHtml(item.profileName)}" data-tab-id="${escapeHtml(item.tabId || "")}">Bật F5</button>
+              <button class="btn btn-sm" data-tab-action="stop-f5" data-profile-name="${escapeHtml(item.profileName)}" data-tab-id="${escapeHtml(item.tabId || "")}">Dừng</button>
+              <button class="btn btn-sm" data-tab-action="reload" data-profile-name="${escapeHtml(item.profileName)}" data-tab-id="${escapeHtml(item.tabId || "")}">Reload</button>
             </div>
           </td>
         </tr>
@@ -1232,17 +1244,52 @@
   }
 
   /* Actions & Persistence */
+  function applyOptimisticF5State(targetProfile, enabled) {
+    const nowIso = new Date().toISOString();
+    const nextStatus = enabled ? "waiting_20m" : "idle";
+    const nextMsg = enabled
+      ? "Đang treo F5 canh HIT trên UHRS (63766)"
+      : "Đã tạm dừng Auto F5 (Đang nghỉ)";
+    for (const [k, reg] of Object.entries(state.profileRegistry || {})) {
+      const pName = String(reg.profile || k || "").trim();
+      if (!targetProfile || pName.toLowerCase() === targetProfile.toLowerCase()) {
+        if (["waiting_20m", "waiting", "idle", "watcher_started", "offline"].includes(reg.status || "")) {
+          reg.status = nextStatus;
+          reg.message = nextMsg;
+          reg.lastSeenAt = nowIso;
+        }
+      }
+    }
+    for (const tabState of Object.values(state.activeStatesByTab || {})) {
+      const pName = String(tabState.adsPowerProfile || tabState.profile || "").trim();
+      if (!targetProfile || pName.toLowerCase() === targetProfile.toLowerCase()) {
+        if (["waiting_20m", "waiting", "idle", "watcher_started", "offline"].includes(tabState.status || "")) {
+          tabState.status = nextStatus;
+          tabState.message = nextMsg;
+          tabState.f5Enabled = enabled;
+          tabState.at = nowIso;
+          tabState.lastSeenAt = nowIso;
+        }
+      }
+    }
+    renderAll();
+  }
+
   function sendTabCommand(command, args = {}) {
+    hubFetch("/api/command", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command, ...args })
+    }).then(() => setTimeout(loadStandaloneServerState, 350)).catch(() => {});
+
     if (isExtensionEnv && globalThis.chrome?.runtime?.sendMessage) {
-      chrome.runtime.sendMessage({ type: "send_tab_command", command, args }, () => {
-        setTimeout(loadLocalExtensionState, 250);
-      });
-    } else {
-      hubFetch("/api/command", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ command, ...args })
-      }).then(() => setTimeout(loadStandaloneServerState, 250)).catch(() => {});
+      const localProf = String(state.settings.adsPowerProfile || state.settings.profile || "").trim();
+      if (!args.profile || !localProf || String(args.profile).trim().toLowerCase() === localProf.toLowerCase()) {
+        chrome.runtime.sendMessage({ type: "send_tab_command", command, args }, () => {
+          void chrome.runtime?.lastError;
+          setTimeout(loadLocalExtensionState, 350);
+        });
+      }
     }
   }
 
@@ -1262,35 +1309,48 @@
   }
 
   function saveSettingsObject(partial, toastMessage = "Đã lưu và đồng bộ cho tất cả các acc.") {
+    lastSettingsSaveAt = Date.now();
     const next = { ...state.settings, ...partial };
     state.settings = next;
+    const hubPayload = {};
+    for (const k of [
+      "appId", "skipTaskGroupId", "sheetId", "sheetGid",
+      "refreshSeconds", "answerDelayMinSeconds", "answerDelayMaxSeconds",
+      "autoAnswerSettleMs", "enabled", "autoAnswerEnabled", "stopOnNoHit", "autoOpenTask"
+    ]) {
+      if (next[k] !== undefined) hubPayload[k] = next[k];
+    }
     hubFetch("/api/settings", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(next)
+      body: JSON.stringify(hubPayload)
     }).catch(() => {});
-    if (isExtensionEnv && globalThis.chrome?.storage?.local) {
-      chrome.storage.local.set(next, () => {
+
+    const dispatchSyncCommands = () => {
+      if ("answerDelayMinSeconds" in partial || "answerDelayMaxSeconds" in partial) {
         sendTabCommand("SET_DELAY", {
           minSec: next.answerDelayMinSeconds,
           maxSec: next.answerDelayMaxSeconds
         });
+      }
+      if ("refreshSeconds" in partial) {
         sendTabCommand("SET_REFRESH", {
           refreshSeconds: next.refreshSeconds
         });
-        renderAll();
-        showToast(toastMessage);
-      });
-    } else {
-      sendTabCommand("SET_DELAY", {
-        minSec: next.answerDelayMinSeconds,
-        maxSec: next.answerDelayMaxSeconds
-      });
-      sendTabCommand("SET_REFRESH", {
-        refreshSeconds: next.refreshSeconds
-      });
+      }
+      if ("autoAnswerEnabled" in partial) {
+        sendTabCommand("SET_AUTO_ANSWER", {
+          autoAnswerEnabled: Boolean(next.autoAnswerEnabled)
+        });
+      }
       renderAll();
       showToast(toastMessage);
+    };
+
+    if (isExtensionEnv && globalThis.chrome?.storage?.local) {
+      chrome.storage.local.set(next, dispatchSyncCommands);
+    } else {
+      dispatchSyncCommands();
     }
   }
 
@@ -1326,21 +1386,24 @@
 
   $("topToggleF5")?.addEventListener("change", event => {
     const enabled = Boolean(event.target.checked);
-    saveSettingsObject({ enabled }, enabled ? "Đã bật Auto F5 canh HIT." : "Đã tạm dừng Auto F5.");
+    applyOptimisticF5State("", enabled);
+    saveSettingsObject({ enabled }, enabled ? "Đã bật Auto F5 cho tất cả các acc." : "Đã tạm dừng Auto F5 cho tất cả các acc.");
     sendTabCommand(enabled ? "START_F5" : "STOP_F5");
   });
 
   $("quickAutoAnswer")?.addEventListener("change", event => {
     const autoAnswerEnabled = Boolean(event.target.checked);
-    saveSettingsObject({ autoAnswerEnabled }, `Tự trả lời theo Sheet: ${autoAnswerEnabled ? "BẬT" : "TẮT"}`);
+    saveSettingsObject({ autoAnswerEnabled }, `Tự trả lời theo Sheet: ${autoAnswerEnabled ? "BẬT" : "TẮT"} (đã đồng bộ tất cả acc)`);
   });
 
   $("btnCmdStartF5")?.addEventListener("click", () => {
+    applyOptimisticF5State("", true);
     saveSettingsObject({ enabled: true }, "Đã bật Auto F5 canh HIT.");
     sendTabCommand("START_F5");
   });
 
   $("btnCmdStopF5")?.addEventListener("click", () => {
+    applyOptimisticF5State("", false);
     saveSettingsObject({ enabled: false }, "Đã tạm dừng Auto F5.");
     sendTabCommand("STOP_F5");
   });
@@ -1424,30 +1487,30 @@
       return;
     }
     const action = btn.dataset.tabAction;
+    const profileName = btn.dataset.profileName || "";
     if (action === "select-profile") {
-      state.selectedProfile = btn.dataset.profileName || "";
+      state.selectedProfile = profileName;
       renderAll();
       showToast(`Đang xem Profile ${state.selectedProfile}`);
       return;
     }
-    const tabId = Number(btn.dataset.tabId) || null;
-    if (action === "focus" && tabId && isExtensionEnv && globalThis.chrome?.tabs) {
-      chrome.tabs.update(tabId, { active: true });
+    const tabId = btn.dataset.tabId || "";
+    const numericTabId = Number(tabId) || null;
+    if (action === "focus" && numericTabId && isExtensionEnv && globalThis.chrome?.tabs) {
+      chrome.tabs.update(numericTabId, { active: true });
       return;
     }
     if (action === "start-f5") {
-      sendTabCommand("START_F5", { tabId });
-      showToast("Đã bật F5 cho tab.");
+      applyOptimisticF5State(profileName, true);
+      sendTabCommand("START_F5", { profile: profileName, tabId });
+      showToast(`Đã bật Auto F5 cho ${profileName || "tab"}.`);
     } else if (action === "stop-f5") {
-      sendTabCommand("STOP_F5", { tabId });
-      showToast("Đã dừng F5 cho tab.");
+      applyOptimisticF5State(profileName, false);
+      sendTabCommand("STOP_F5", { profile: profileName, tabId });
+      showToast(`Đã tạm dừng Auto F5 cho ${profileName || "tab"}.`);
     } else if (action === "reload") {
-      if (tabId && isExtensionEnv && globalThis.chrome?.tabs) {
-        chrome.tabs.reload(tabId);
-      } else {
-        sendTabCommand("SCAN_NOW", { tabId });
-      }
-      showToast("Đã làm mới tab UHRS.");
+      sendTabCommand("RELOAD_TAB", { profile: profileName, tabId });
+      showToast(`Đã gửi lệnh Reload trang UHRS cho ${profileName || "tab"}.`);
     }
   });
 

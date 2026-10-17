@@ -216,10 +216,17 @@ function syncFromLocalWatcherStatus() {
     const rawTime = Date.parse(nowIso) || Date.now();
     const existingTime = Date.parse(existingTab?.lastSeenAt || "") || 0;
 
-    const status = (pi.status && pi.status !== "unknown")
+    const prevJp29 = hubState.profiles[profileName];
+    const isF5Paused = prevJp29?.f5Enabled === false || pi.f5Enabled === false;
+    const rawStatus = (pi.status && pi.status !== "unknown")
       ? pi.status
       : (raw.detectedStatus || (pi.reduxJudging?.missingHitsReason === 6 ? "waiting_20m" : "waiting"));
-    const message = pi.message || raw.detectedReason || "Đang treo F5 canh HIT trên UHRS (63766)";
+    const status = isF5Paused && ["waiting_20m", "waiting", "idle"].includes(rawStatus)
+      ? "idle"
+      : rawStatus;
+    const message = isF5Paused && status === "idle"
+      ? "Đã tạm dừng Auto F5 (Đang nghỉ)"
+      : (pi.message || raw.detectedReason || "Đang treo F5 canh HIT trên UHRS (63766)");
 
     if (!existingTab || rawTime >= existingTime - 5000) {
       hubState.activeTabs[tabKey] = {
@@ -238,8 +245,9 @@ function syncFromLocalWatcherStatus() {
         networkIp: "139.190.145.67",
         networkCountry: "JP",
         proxyName: "139.190.145.67 (JP)",
-        f5Active: pi.f5Enabled !== false,
-        autoAnswerEnabled: true,
+        f5Enabled: !isF5Paused,
+        f5Active: !isF5Paused,
+        autoAnswerEnabled: hubState.watcherSettings.autoAnswerEnabled !== false,
         at: nowIso,
         lastSeenAt: nowIso
       };
@@ -253,6 +261,7 @@ function syncFromLocalWatcherStatus() {
         networkCountry: "JP",
         status,
         message,
+        f5Enabled: !isF5Paused,
         lastSeenAt: nowIso,
         completedCount: Number(raw.hitsDetected || 0),
         skippedCount: Number(raw.skippedQuestionCount || 0),
@@ -405,8 +414,18 @@ async function requestHandler(req, res) {
 
   if (req.method === "POST" && pathname === "/api/settings") {
     const body = await readJsonBody(req);
-    hubState.watcherSettings = { ...hubState.watcherSettings, ...body };
+    const allowedKeys = [
+      "appId", "skipTaskGroupId", "sheetId", "sheetGid",
+      "refreshSeconds", "answerDelayMinSeconds", "answerDelayMaxSeconds",
+      "autoAnswerSettleMs", "enabled", "autoAnswerEnabled", "stopOnNoHit", "autoOpenTask"
+    ];
+    for (const k of allowedKeys) {
+      if (body[k] !== undefined) {
+        hubState.watcherSettings[k] = body[k];
+      }
+    }
     const nowMs = Date.now();
+    const nowIso = new Date().toISOString();
     if (body.answerDelayMinSeconds || body.answerDelayMaxSeconds) {
       hubState.queuedCommands.push({
         id: `cmd-${nowMs}-delay`,
@@ -424,12 +443,43 @@ async function requestHandler(req, res) {
         refreshSeconds: hubState.watcherSettings.refreshSeconds
       });
     }
+    if (typeof body.autoAnswerEnabled === "boolean") {
+      hubState.queuedCommands.push({
+        id: `cmd-${nowMs}-autoanswer`,
+        at: nowMs,
+        command: "SET_AUTO_ANSWER",
+        autoAnswerEnabled: Boolean(body.autoAnswerEnabled)
+      });
+    }
     if (typeof body.enabled === "boolean") {
+      const isStart = Boolean(body.enabled);
       hubState.queuedCommands.push({
         id: `cmd-${nowMs}-f5`,
         at: nowMs,
-        command: body.enabled ? "START_F5" : "STOP_F5"
+        command: isStart ? "START_F5" : "STOP_F5"
       });
+      const nextStatus = isStart ? "waiting_20m" : "idle";
+      const nextMsg = isStart
+        ? "Đang treo F5 canh HIT trên UHRS (63766)"
+        : "Đã tạm dừng Auto F5 (Đang nghỉ)";
+      for (const p of Object.values(hubState.profiles)) {
+        p.f5Enabled = isStart;
+        if (["waiting_20m", "waiting", "idle", "watcher_started", "offline"].includes(p.status || "")) {
+          p.status = nextStatus;
+          p.message = nextMsg;
+          p.lastSeenAt = nowIso;
+        }
+      }
+      for (const t of Object.values(hubState.activeTabs)) {
+        t.f5Enabled = isStart;
+        t.f5Active = isStart;
+        if (["waiting_20m", "waiting", "idle", "watcher_started", "offline"].includes(t.status || "")) {
+          t.status = nextStatus;
+          t.message = nextMsg;
+          t.at = nowIso;
+          t.lastSeenAt = nowIso;
+        }
+      }
     }
     saveHubStateCache();
     sendJson(res, 200, { ok: true, settings: hubState.watcherSettings });
@@ -444,16 +494,36 @@ async function requestHandler(req, res) {
     const tabId = String(payload.tabId || "tab-main").trim();
     const tabKey = `${profileName}::${tabId}`;
 
+    for (const k of Object.keys(hubState.activeTabs)) {
+      if (k.startsWith(`${profileName}::`) && k !== tabKey) {
+        delete hubState.activeTabs[k];
+      }
+    }
+
+    const prevProf = hubState.profiles[profileName] || {};
+    const curF5 = typeof payload.f5Enabled === "boolean"
+      ? payload.f5Enabled
+      : (typeof prevProf.f5Enabled === "boolean" ? prevProf.f5Enabled : true);
+    const effStatus = !curF5 && ["waiting_20m", "waiting", "idle", "watcher_started"].includes(payload.status || "")
+      ? "idle"
+      : (payload.status || prevProf.status || "idle");
+    const effMessage = !curF5 && effStatus === "idle"
+      ? "Đã tạm dừng Auto F5 (Đang nghỉ)"
+      : (payload.message || prevProf.message || "");
+
     hubState.activeTabs[tabKey] = {
       ...payload,
       profile: profileName,
       adsPowerProfile: profileName,
       tabId,
+      status: effStatus,
+      message: effMessage,
+      f5Enabled: curF5,
+      f5Active: curF5,
       at: nowIso,
       lastSeenAt: nowIso
     };
 
-    const prevProf = hubState.profiles[profileName] || {};
     let isCompleted = false;
     let isSkipped = false;
     let isRejected = false;
@@ -497,8 +567,9 @@ async function requestHandler(req, res) {
       proxyName: proxyNm,
       networkIp: netIp,
       networkCountry: netCountry,
-      status: payload.status || prevProf.status || "idle",
-      message: payload.message || prevProf.message || "",
+      status: effStatus,
+      message: effMessage,
+      f5Enabled: curF5,
       lastSeenAt: nowIso,
       completedCount: Number(prevProf.completedCount || 0) + (isCompleted ? 1 : 0),
       skippedCount: Number(prevProf.skippedCount || 0) + (isSkipped ? 1 : 0),
@@ -521,8 +592,8 @@ async function requestHandler(req, res) {
       {
         at: nowIso,
         profile: profileName,
-        status: payload.status || "idle",
-        message: payload.message || "",
+        status: effStatus,
+        message: effMessage,
         targetUrl: payload.targetUrl || "",
         url: payload.url || "",
         confidence: payload.confidence
@@ -546,12 +617,61 @@ async function requestHandler(req, res) {
     const body = await readJsonBody(req);
     if (body.command) {
       const nowMs = Date.now();
+      const nowIso = new Date().toISOString();
       hubState.queuedCommands = (hubState.queuedCommands || []).filter(c => nowMs - Number(c.at || nowMs) < 25000);
       hubState.queuedCommands.push({
         id: body.id || `cmd-${nowMs}-${Math.random().toString(16).slice(2, 6)}`,
         at: nowMs,
         ...body
       });
+      const targetProf = String(body.profile || "").trim();
+      if (body.command === "START_F5" || body.command === "STOP_F5") {
+        const isStart = body.command === "START_F5";
+        if (!targetProf) hubState.watcherSettings.enabled = isStart;
+        const nextStatus = isStart ? "waiting_20m" : "idle";
+        const nextMsg = isStart
+          ? "Đang treo F5 canh HIT trên UHRS (63766)"
+          : "Đã tạm dừng Auto F5 (Đang nghỉ)";
+        for (const [k, p] of Object.entries(hubState.profiles)) {
+          if (!targetProf || k.toLowerCase() === targetProf.toLowerCase()) {
+            p.f5Enabled = isStart;
+            if (["waiting_20m", "waiting", "idle", "watcher_started", "offline"].includes(p.status || "")) {
+              p.status = nextStatus;
+              p.message = nextMsg;
+              p.lastSeenAt = nowIso;
+            }
+          }
+        }
+        for (const t of Object.values(hubState.activeTabs)) {
+          const tProf = String(t.adsPowerProfile || t.profile || "").trim();
+          if (!targetProf || tProf.toLowerCase() === targetProf.toLowerCase()) {
+            t.f5Enabled = isStart;
+            t.f5Active = isStart;
+            if (["waiting_20m", "waiting", "idle", "watcher_started", "offline"].includes(t.status || "")) {
+              t.status = nextStatus;
+              t.message = nextMsg;
+              t.at = nowIso;
+              t.lastSeenAt = nowIso;
+            }
+          }
+        }
+        saveHubStateCache();
+      } else if (body.command === "RELOAD_TAB" && targetProf) {
+        for (const [k, p] of Object.entries(hubState.profiles)) {
+          if (k.toLowerCase() === targetProf.toLowerCase()) {
+            p.message = "Đang tải lại trang UHRS (Reload)...";
+            p.lastSeenAt = nowIso;
+          }
+        }
+        for (const t of Object.values(hubState.activeTabs)) {
+          const tProf = String(t.adsPowerProfile || t.profile || "").trim();
+          if (tProf.toLowerCase() === targetProf.toLowerCase()) {
+            t.message = "Đang tải lại trang UHRS (Reload)...";
+            t.at = nowIso;
+            t.lastSeenAt = nowIso;
+          }
+        }
+      }
     }
     sendJson(res, 200, { ok: true });
     return;
