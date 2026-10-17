@@ -111,26 +111,52 @@ async function fetchLiveGoogleSheet(sheetId, sheetGid, force = false) {
   return [];
 }
 
-async function syncAdsPowerLocalApi(apiUrl = "http://local.adspower.net:50325") {
+async function syncAdsPowerLocalApi(apiUrl = "http://127.0.0.1:50325") {
   try {
-    const cleanUrl = String(apiUrl || "http://local.adspower.net:50325").replace(/\/+$/, "");
-    const res = await fetch(`${cleanUrl}/api/v1/user/list?page=1&page_size=100`);
-    if (!res.ok) return [];
+    const cleanUrl = String(apiUrl || "http://127.0.0.1:50325").replace(/\/+$/, "");
+    const headers = { Authorization: "Bearer e1b667df828ab6f9466fe9e3e6338ca3008fabe53027fa82" };
+    const res = await fetch(`${cleanUrl}/api/v1/user/list?page=1&page_size=100`, { headers });
+    if (!res.ok) return hubState.adsPowerProfiles;
     const data = await res.json();
     const list = Array.isArray(data?.data?.list) ? data.data.list : [];
-    const mapped = list.map(item => ({
-      profileId: String(item.user_id || ""),
-      serialNumber: String(item.serial_number || ""),
-      profileName: String(item.name || item.serial_number || item.user_id || "Profile"),
-      groupName: String(item.group_name || ""),
-      proxyIp: String(item.ip || ""),
-      proxyCountry: String(item.ip_country || item.country || "").toUpperCase(),
-      proxyName: item.user_proxy_config?.proxy_host
-        ? `${item.user_proxy_config.proxy_type || "proxy"}://${item.user_proxy_config.proxy_host}:${item.user_proxy_config.proxy_port || ""}`
-        : ""
-    }));
+    const mapped = list.map(item => {
+      const ip = String(item.ip || "");
+      const country = String(item.ip_country || item.country || "").toUpperCase();
+      return {
+        profileId: String(item.user_id || ""),
+        serialNumber: String(item.serial_number || ""),
+        profileName: String(item.name || item.serial_number || item.user_id || "Profile"),
+        groupName: String(item.group_name || ""),
+        proxyIp: ip,
+        proxyCountry: country,
+        proxyName: item.user_proxy_config?.proxy_host
+          ? `${item.user_proxy_config.proxy_type || "proxy"}://${item.user_proxy_config.proxy_host}:${item.user_proxy_config.proxy_port || ""}`
+          : (ip ? `${ip}${country ? ` (${country})` : ""}` : "")
+      };
+    });
     if (mapped.length) {
       hubState.adsPowerProfiles = mapped;
+      for (const p of mapped) {
+        const name = p.profileName;
+        if (!name) continue;
+        if (!hubState.profiles[name]) {
+          hubState.profiles[name] = {
+            profileName: name,
+            profileId: p.profileId,
+            serialNumber: p.serialNumber,
+            proxyName: p.proxyName || "",
+            networkIp: p.proxyIp || "",
+            networkCountry: p.proxyCountry || "",
+            status: "waiting_20m",
+            message: "Đang treo F5 canh HIT trên UHRS (63766)",
+            lastSeenAt: new Date().toISOString(),
+            completedCount: 0,
+            skippedCount: 0,
+            rejectedCount: 0,
+            totalEarnings: 0
+          };
+        }
+      }
     }
     return mapped;
   } catch {

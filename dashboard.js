@@ -507,8 +507,33 @@
     renderSettingsForm();
   }
 
+  function getSelectedLiveState() {
+    const sel = String(state.selectedProfile || "").trim();
+    if (sel) {
+      for (const tabState of Object.values(state.activeStatesByTab || {})) {
+        const name = String(tabState.adsPowerProfile || tabState.profile || "").trim();
+        if (name === sel) return tabState;
+      }
+      const unified = buildUnifiedProfilesList().find(p => p.profileName === sel);
+      if (unified) {
+        return {
+          profile: unified.profileName,
+          adsPowerProfile: unified.profileName,
+          status: unified.status,
+          message: unified.message,
+          targetUrl: unified.targetUrl || "",
+          networkIp: unified.networkIp,
+          networkCountry: unified.networkCountry,
+          proxyName: unified.proxyName,
+          at: unified.lastSeenAt
+        };
+      }
+    }
+    return state.liveTabState;
+  }
+
   function renderKPIs() {
-    const live = state.liveTabState;
+    const live = getSelectedLiveState();
     const s = state.settings;
     const currentStatus = live?.status || "waiting_20m";
     const meta = statusMeta(currentStatus);
@@ -531,9 +556,14 @@
     $("kpiStatusValue").textContent = meta.label;
     $("kpiStatusSub").textContent = live?.message || (s.enabled !== false ? `Auto F5 đang chạy (${s.refreshSeconds || 30}s)` : "Auto F5 đang tạm dừng");
 
-    const completedList = state.questionHistory.filter(q => q.status === "completed");
-    const skippedList = state.questionHistory.filter(q => q.status === "skipped");
-    const rejectedList = state.questionHistory.filter(q => q.status === "rejected");
+    const selProf = String(state.selectedProfile || "").trim();
+    const profHistory = selProf
+      ? state.questionHistory.filter(q => String(q.profile || "") === selProf)
+      : state.questionHistory;
+
+    const completedList = profHistory.filter(q => q.status === "completed");
+    const skippedList = profHistory.filter(q => q.status === "skipped");
+    const rejectedList = profHistory.filter(q => q.status === "rejected");
 
     const todayStr = new Date().toLocaleDateString("en-CA");
     const monthStr = todayStr.slice(0, 7);
@@ -602,7 +632,7 @@
   }
 
   function renderLiveHitInspector() {
-    const live = state.liveTabState;
+    const live = getSelectedLiveState();
     const badgeEl = $("liveHitBadge");
     if (!live) {
       badgeEl.className = "badge";
@@ -837,18 +867,22 @@
       return;
     }
 
+    const currentSelected = state.selectedProfile || state.liveTabState?.adsPowerProfile || state.liveTabState?.profile || "JP29";
+
     tbody.innerHTML = filtered.map(item => {
       const meta = statusMeta(item.status);
       const ipDisplay = item.networkIp
         ? `${item.networkCountry ? item.networkCountry + " · " : ""}${item.networkIp}`
         : (item.proxyName || "Chưa rõ IP");
+      const isSelected = item.profileName === currentSelected;
 
       return `
-        <tr>
+        <tr data-select-profile="${escapeHtml(item.profileName)}" style="cursor:pointer;${isSelected ? "background:rgba(59,130,246,0.08)" : ""}">
           <td>
             <div style="display:flex;align-items:center;gap:6px">
               <span style="font-weight:600;color:var(--text)">${escapeHtml(item.profileName)}</span>
               <span class="mono" style="font-size:11px;color:var(--text-muted)">${item.serialNumber ? `#${escapeHtml(item.serialNumber)}` : ""}</span>
+              ${isSelected ? `<span class="badge badge-hit" style="font-size:10px;padding:1px 6px">Đang xem</span>` : ""}
             </div>
             <div class="mono" style="font-size:11.5px;color:var(--text-secondary);margin-top:2px">${escapeHtml(ipDisplay)}</div>
           </td>
@@ -868,6 +902,7 @@
           </td>
           <td style="text-align:right;white-space:nowrap">
             <div style="display:inline-flex;gap:5px">
+              <button class="btn btn-sm ${isSelected ? "btn-primary" : ""}" data-tab-action="select-profile" data-profile-name="${escapeHtml(item.profileName)}">${isSelected ? "Đang xem" : "Xem"}</button>
               <button class="btn btn-sm" data-tab-action="start-f5" data-tab-id="${escapeHtml(item.tabId || "")}">Bật F5</button>
               <button class="btn btn-sm" data-tab-action="stop-f5" data-tab-id="${escapeHtml(item.tabId || "")}">Dừng</button>
               <button class="btn btn-sm" data-tab-action="reload" data-tab-id="${escapeHtml(item.tabId || "")}">Reload</button>
@@ -1299,8 +1334,22 @@
 
   $("profilesTableBody")?.addEventListener("click", event => {
     const btn = event.target.closest("button[data-tab-action]");
-    if (!btn) return;
+    if (!btn) {
+      const row = event.target.closest("tr[data-select-profile]");
+      if (row?.dataset?.selectProfile) {
+        state.selectedProfile = row.dataset.selectProfile;
+        renderAll();
+        showToast(`Đang xem Profile ${state.selectedProfile}`);
+      }
+      return;
+    }
     const action = btn.dataset.tabAction;
+    if (action === "select-profile") {
+      state.selectedProfile = btn.dataset.profileName || "";
+      renderAll();
+      showToast(`Đang xem Profile ${state.selectedProfile}`);
+      return;
+    }
     const tabId = Number(btn.dataset.tabId) || null;
     if (action === "focus" && tabId && isExtensionEnv && globalThis.chrome?.tabs) {
       chrome.tabs.update(tabId, { active: true });
