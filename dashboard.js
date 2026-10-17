@@ -253,7 +253,7 @@
       return;
     }
     return new Promise(resolve => {
-      chrome.storage.local.get(null, stored => {
+      chrome.storage.local.get(null, async stored => {
         const mergedSettings = { ...DEFAULT_SETTINGS };
         for (const key of Object.keys(DEFAULT_SETTINGS)) {
           if (key in stored && stored[key] !== undefined) {
@@ -262,7 +262,7 @@
         }
         if (/hit-watch-server\.vercel\.app/i.test(String(mergedSettings.serverUrl || ""))) {
           mergedSettings.serverUrl = "http://127.0.0.1:8790/api/action";
-          mergedSettings.remoteServerEnabled = false;
+          mergedSettings.remoteServerEnabled = true;
         }
         state.settings = mergedSettings;
 
@@ -279,7 +279,7 @@
         state.activeStatesByTab = tabStates;
         state.liveTabState = newestState;
         state.profileRegistry = stored.uhrsProfileRegistry && typeof stored.uhrsProfileRegistry === "object"
-          ? stored.uhrsProfileRegistry
+          ? { ...stored.uhrsProfileRegistry }
           : {};
         if (Array.isArray(stored.uhrsAdsPowerProfiles) && stored.uhrsAdsPowerProfiles.length) {
           state.adsPowerProfiles = stored.uhrsAdsPowerProfiles;
@@ -288,52 +288,83 @@
         state.eventHistory = Array.isArray(stored.uhrsEventHistory) ? stored.uhrsEventHistory : [];
         state.localLearnedRecords = Array.isArray(stored.uhrsLearnedAnswers) ? stored.uhrsLearnedAnswers : [];
 
+        await loadStandaloneServerState(true);
         renderAll();
         resolve();
       });
     });
   }
 
-  async function loadStandaloneServerState() {
+  async function loadStandaloneServerState(mergeIntoExtension = false) {
     try {
       const res = await hubFetch("/api/state", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
       if (data.watcherSettings) {
-        state.settings = { ...DEFAULT_SETTINGS, ...data.watcherSettings };
+        if (mergeIntoExtension) {
+          const sharedKeys = [
+            "appId",
+            "skipTaskGroupId",
+            "sheetId",
+            "sheetGid",
+            "refreshSeconds",
+            "answerDelayMinSeconds",
+            "answerDelayMaxSeconds",
+            "autoAnswerSettleMs",
+            "autoAnswerEnabled"
+          ];
+          const nextLocal = {};
+          for (const k of sharedKeys) {
+            if (data.watcherSettings[k] !== undefined && data.watcherSettings[k] !== "") {
+              state.settings[k] = data.watcherSettings[k];
+              nextLocal[k] = data.watcherSettings[k];
+            }
+          }
+          if (Object.keys(nextLocal).length && globalThis.chrome?.storage?.local) {
+            chrome.storage.local.set(nextLocal);
+          }
+        } else {
+          state.settings = { ...DEFAULT_SETTINGS, ...data.watcherSettings };
+        }
       }
       if (data.activeTabs && typeof data.activeTabs === "object") {
-        state.activeStatesByTab = data.activeTabs;
-        const sorted = Object.values(data.activeTabs).sort((a, b) => Date.parse(b.lastSeenAt || b.at || "") - Date.parse(a.lastSeenAt || a.at || ""));
-        state.liveTabState = sorted[0] || null;
+        state.activeStatesByTab = mergeIntoExtension
+          ? { ...data.activeTabs, ...state.activeStatesByTab }
+          : data.activeTabs;
+        const sorted = Object.values(state.activeStatesByTab).sort((a, b) => Date.parse(b.lastSeenAt || b.at || "") - Date.parse(a.lastSeenAt || a.at || ""));
+        state.liveTabState = state.liveTabState || sorted[0] || null;
       }
       if (Array.isArray(data.adsPowerProfiles) && data.adsPowerProfiles.length) {
         state.adsPowerProfiles = data.adsPowerProfiles;
       }
       if (Array.isArray(data.profiles)) {
-        const reg = {};
+        const reg = mergeIntoExtension ? { ...state.profileRegistry } : {};
         for (const p of data.profiles) {
           const key = p.profileName || p.profile || p.clientId || "Profile";
+          if (/^(?:Unknown|Default)$/i.test(key)) continue;
           reg[key] = {
+            ...(reg[key] || {}),
             key,
             profile: p.profileName || p.profile || "Profile",
-            proxyName: p.proxyName || "",
-            networkIp: p.networkIp || p.proxyIp || "",
-            networkCountry: p.networkCountry || p.proxyCountry || "",
-            status: p.status || "idle",
-            message: p.message || "",
-            lastSeenAt: p.lastSeenAt || "",
-            completedCount: p.completedCount || 0,
-            skippedCount: p.skippedCount || 0,
-            rejectedCount: p.rejectedCount || 0,
-            totalEarnings: p.totalEarnings || 0
+            proxyName: p.proxyName || reg[key]?.proxyName || "",
+            networkIp: p.networkIp || p.proxyIp || reg[key]?.networkIp || "",
+            networkCountry: p.networkCountry || p.proxyCountry || reg[key]?.networkCountry || "",
+            status: p.status || reg[key]?.status || "idle",
+            message: p.message || reg[key]?.message || "",
+            lastSeenAt: p.lastSeenAt || reg[key]?.lastSeenAt || "",
+            completedCount: Math.max(Number(p.completedCount || 0), Number(reg[key]?.completedCount || 0)),
+            skippedCount: Math.max(Number(p.skippedCount || 0), Number(reg[key]?.skippedCount || 0)),
+            rejectedCount: Math.max(Number(p.rejectedCount || 0), Number(reg[key]?.rejectedCount || 0)),
+            totalEarnings: Math.max(Number(p.totalEarnings || 0), Number(reg[key]?.totalEarnings || 0))
           };
         }
         state.profileRegistry = reg;
       }
-      if (Array.isArray(data.questions)) state.questionHistory = data.questions;
-      if (Array.isArray(data.events)) state.eventHistory = data.events;
-      renderAll();
+      if (!mergeIntoExtension) {
+        if (Array.isArray(data.questions)) state.questionHistory = data.questions;
+        if (Array.isArray(data.events)) state.eventHistory = data.events;
+        renderAll();
+      }
     } catch {}
   }
 
@@ -747,6 +778,7 @@
 
     for (const [k, reg] of Object.entries(state.profileRegistry || {})) {
       const name = String(reg.profile || k || "JP29").trim();
+      if (/^(?:Unknown|Default)$/i.test(name)) continue;
       const existing = map.get(name) || {
         key: name,
         profileName: name,
@@ -779,11 +811,15 @@
     }
 
     for (const tabState of Object.values(state.activeStatesByTab || {})) {
-      const name = String(tabState.adsPowerProfile || tabState.profile || state.settings.adsPowerProfile || state.settings.profile || "JP29").trim();
+      let name = String(tabState.adsPowerProfile || tabState.profile || state.settings.adsPowerProfile || state.settings.profile || "JP29").trim();
+      if (/^(?:Unknown|Default)$/i.test(name)) {
+        name = String(state.settings.adsPowerProfile || state.settings.profile || "").trim();
+      }
+      if (!name || /^(?:Unknown|Default)$/i.test(name)) continue;
       const existing = map.get(name) || {
         key: name,
         profileName: name,
-        serialNumber: tabState.adsPowerSerial || "40",
+        serialNumber: tabState.adsPowerSerial || "",
         profileId: tabState.adsPowerProfileId || "",
         proxyName: "",
         networkIp: "",
@@ -1202,9 +1238,14 @@
     }
   }
 
-  function saveSettingsObject(partial, toastMessage = "Đã lưu và áp dụng thiết lập.") {
+  function saveSettingsObject(partial, toastMessage = "Đã lưu và đồng bộ cho tất cả các acc.") {
     const next = { ...state.settings, ...partial };
     state.settings = next;
+    hubFetch("/api/settings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(next)
+    }).catch(() => {});
     if (isExtensionEnv && globalThis.chrome?.storage?.local) {
       chrome.storage.local.set(next, () => {
         sendTabCommand("SET_DELAY", {
@@ -1218,21 +1259,15 @@
         showToast(toastMessage);
       });
     } else {
-      hubFetch("/api/settings", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(next)
-      }).then(() => {
-        sendTabCommand("SET_DELAY", {
-          minSec: next.answerDelayMinSeconds,
-          maxSec: next.answerDelayMaxSeconds
-        });
-        sendTabCommand("SET_REFRESH", {
-          refreshSeconds: next.refreshSeconds
-        });
-        renderAll();
-        showToast(toastMessage);
-      }).catch(() => {});
+      sendTabCommand("SET_DELAY", {
+        minSec: next.answerDelayMinSeconds,
+        maxSec: next.answerDelayMaxSeconds
+      });
+      sendTabCommand("SET_REFRESH", {
+        refreshSeconds: next.refreshSeconds
+      });
+      renderAll();
+      showToast(toastMessage);
     }
   }
 
